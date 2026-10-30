@@ -146,7 +146,7 @@ fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, r
             }
             item {
                 Text(
-                    "Approximation only: this does not slice layers, offset perimeter paths, plan machine-specific flow, or generate collision-aware supports. Use a slicer for print-ready estimates.",
+                    "Approximation only: walls use side-surface area, shells use the XY bounding rectangle, and supports use projected overhang columns. Actual paths, infill pattern overhead, thin-wall handling, support intersections, and printer flow settings are not simulated. Results depend on slicing paths and printer settings; use a slicer for print-ready estimates.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 24.dp),
@@ -193,7 +193,7 @@ private fun NumberInput(label: String, value: String, onChange: (String) -> Unit
 
 @Composable
 private fun EstimateResults(result: PrintEstimate, material: MaterialProfile?, printer: PrinterProfile?) {
-    EstimatorCard("ESTIMATED RESULTS") {
+    EstimatorCard("APPROXIMATE ESTIMATES") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             SummaryValue("FILAMENT", "%.2f g".format(result.weightGrams))
             SummaryValue("LENGTH", "%.2f m".format(result.filamentLengthMeters))
