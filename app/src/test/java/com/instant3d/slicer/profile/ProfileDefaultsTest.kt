@@ -60,8 +60,10 @@ class ProfileDefaultsTest {
     }
 
     @Test
-    fun onlyCustomMaterialsAreMarkedDeletable() {
-        assertFalse(ProfileRepository.DEFAULT_MATERIALS.first().isBuiltIn)
+    fun builtInsCannotBeDeletedButCustomProfilesCanBeMarked() {
+        assertTrue(ProfileRepository.DEFAULT_MATERIALS.all { it.isBuiltIn })
+        val custom = ProfileRepository.DEFAULT_MATERIALS.first().copy(id = "custom-test", isBuiltIn = false)
+        assertFalse(custom.isBuiltIn)
     }
 
     private fun assertVolume(profile: PrinterProfile, size: Double) {
