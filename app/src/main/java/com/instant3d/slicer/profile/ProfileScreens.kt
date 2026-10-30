@@ -115,18 +115,19 @@ fun PrinterProfilesScreen(repository: ProfileRepository) {
         }
         item { Text("Specifications: [A1](https://cdn1.bambulab.com/documentation/quick-start-a75adcb1d5d5e/Quick%20Start%20Guide%20for%20A1.pdf), [A1 Mini](https://cdn1.bambulab.com/documentation/quick-start-f507128172bdf/Quick%20start%20guide%20-%20A1%20mini-EN.pdf), [P1P](https://public-cdn.bambulab.com/store/bambulab-P1P-tech-specs.pdf), [P1S](https://cdn1.bambulab.com/documentation/quick-start-59b0cefdc0fc4/P1S/English%20version-Quick%20Start%20Guide%20for%20P1S.pdf), [X1 Carbon](https://public-cdn.bambulab.com/store/bambulab-X1-carbon-tech-specs.pdf).", style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant, modifier=Modifier.padding(bottom=24.dp)) }
     }
-    editor?.let { p -> PrinterDialog(p, {editor=null}) { x,y,z,n ->
+    editor?.let { p -> PrinterDialog(p, {editor=null}) { x,y,z,n,onError ->
         scope.launch {
             try {
                 repository.savePrinter(p.copy(buildXmm=x.toDoubleOrNull()?:0.0,buildYmm=y.toDoubleOrNull()?:0.0,buildZmm=z.toDoubleOrNull()?:0.0,nozzleDiameterMm=n.toDoubleOrNull()?:0.0))
                 editor=null
-            } catch (_: IllegalArgumentException) { }
+            } catch (e: IllegalArgumentException) { onError(e.message ?: "Check printer values.") }
         }
     } }
 }
 
 @Composable
-private fun PrinterDialog(p: PrinterProfile,onDismiss:()->Unit,onSave:(String,String,String,String)->Unit) {
+private fun PrinterDialog(p: PrinterProfile,onDismiss:()->Unit,onSave:(String,String,String,String,(String)->Unit)->Unit) {
+    var error by remember(p.id){mutableStateOf<String?>(null)}
     var x by remember(p.id){mutableStateOf(p.buildXmm.toString())}
     var y by remember(p.id){mutableStateOf(p.buildYmm.toString())}
     var z by remember(p.id){mutableStateOf(p.buildZmm.toString())}
@@ -137,6 +138,7 @@ private fun PrinterDialog(p: PrinterProfile,onDismiss:()->Unit,onSave:(String,St
             OutlinedTextField(y,{y=it},label={Text("Build Y (mm)")},singleLine=true)
             OutlinedTextField(z,{z=it},label={Text("Build Z (mm)")},singleLine=true)
             OutlinedTextField(n,{n=it},label={Text("Nozzle (mm)")},singleLine=true)
+            if(error != null) Text(error!!, color=MaterialTheme.colorScheme.error, style=MaterialTheme.typography.bodySmall)
         }
-    },confirmButton={TextButton({onSave(x,y,z,n)}){Text("Save")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})
+    },confirmButton={TextButton({onSave(x,y,z,n){error=it}}){Text("Save")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})
 }
