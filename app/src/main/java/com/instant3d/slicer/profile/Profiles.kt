@@ -58,6 +58,9 @@ interface ProfileDao {
     @Query("SELECT * FROM material_profiles WHERE id = :id")
     suspend fun getMaterial(id: String): MaterialProfile?
 
+    @Query("SELECT * FROM printer_profiles WHERE id = :id")
+    suspend fun getPrinter(id: String): PrinterProfile?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveMaterial(profile: MaterialProfile)
 
@@ -141,7 +144,7 @@ class ProfileRepository(private val dao: ProfileDao) {
     }
 
     suspend fun setDefaultPrinter(id: String) {
-        require(id in DEFAULT_PRINTERS.map { it.id } || dao.observePrinters() != null)
+        require(dao.getPrinter(id) != null) { "Printer profile no longer exists." }
         dao.savePreferences((dao.getPreferences() ?: ProfilePreferences()).copy(defaultPrinterId = id))
     }
 
