@@ -103,7 +103,7 @@ private fun SlicerApp() {
             importError = null
             scope.launch {
                 try {
-                    val result = withContext(Dispatchers.IO) {
+                    val (name, bytes) = withContext(Dispatchers.IO) {
                         val name = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                             val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                             if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
@@ -111,10 +111,11 @@ private fun SlicerApp() {
                         val bytes = context.contentResolver.openInputStream(uri)?.use {
                             readBytesAtMost(it, MAX_STL_BYTES)
                         } ?: error("Android could not open this file.")
-                        name to StlParser.parse(bytes)
+                        name to bytes
                     }
-                    selectedFileName = result.first
-                    selectedModel = result.second
+                    val model = withContext(Dispatchers.Default) { StlParser.parse(bytes) }
+                    selectedFileName = name
+                    selectedModel = model
                     navController.navigate("model") { launchSingleTop = true }
                 } catch (error: Exception) {
                     importError = error.message ?: "Unable to import this STL file."
