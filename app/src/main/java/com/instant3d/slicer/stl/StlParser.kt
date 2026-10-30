@@ -24,7 +24,7 @@ data class StlModel(
 }
 
 object StlParser {
-    private const val MAX_TRIANGLES = 1_000_000
+    private const val MAX_TRIANGLES = 100_000
 
     fun parse(bytes: ByteArray): StlModel {
         require(bytes.isNotEmpty()) { "The selected file is empty." }
@@ -159,7 +159,7 @@ object StlParser {
                     stage = 0
                 }
                 stage == 0 && sawSolid && parts[0].equals("endsolid", true) -> sawEndSolid = true
-                else -> error("The ASCII STL structure is invalid.")
+                else -> throw IllegalArgumentException("The ASCII STL structure is invalid.")
             }
         }
         require(stage == 0 && sawEndSolid) { "The ASCII STL contains an incomplete facet." }
