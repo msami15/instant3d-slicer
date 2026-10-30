@@ -5,10 +5,22 @@ import java.nio.ByteOrder
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 data class Point3(val x: Float, val y: Float, val z: Float)
 
 data class StlTriangle(val a: Point3, val b: Point3, val c: Point3)
+
+data class MeshIntegrity(
+    val openEdgeCount: Int = 0,
+    val nonManifoldEdgeCount: Int = 0,
+    val inconsistentEdgeCount: Int = 0,
+    val degenerateTriangleCount: Int = 0,
+) {
+    val isValid: Boolean
+        get() = openEdgeCount == 0 && nonManifoldEdgeCount == 0 &&
+            inconsistentEdgeCount == 0 && degenerateTriangleCount == 0
+}
 
 data class StlModel(
     val triangles: List<StlTriangle>,
@@ -16,15 +28,19 @@ data class StlModel(
     val max: Point3,
     val volumeMm3: Double,
     val isClosed: Boolean,
+    val surfaceAreaMm2: Double = 0.0,
+    val integrity: MeshIntegrity = MeshIntegrity(),
 ) {
     val sizeX: Float get() = max.x - min.x
     val sizeY: Float get() = max.y - min.y
     val sizeZ: Float get() = max.z - min.z
     val volumeCm3: Double get() = volumeMm3 / 1000.0
+    val surfaceAreaCm2: Double get() = surfaceAreaMm2 / 100.0
 }
 
 object StlParser {
     private const val MAX_TRIANGLES = 100_000
+    private const val DEGENERATE_RELATIVE_TOLERANCE = 1e-12
 
     fun parse(bytes: ByteArray): StlModel {
         require(bytes.isNotEmpty()) { "The selected file is empty." }
@@ -47,6 +63,8 @@ object StlParser {
         var maxY = Float.NEGATIVE_INFINITY
         var maxZ = Float.NEGATIVE_INFINITY
         var signedVolume = 0.0
+        var surfaceAreaMm2 = 0.0
+        var degenerateTriangleCount = 0
         val reference = triangles.first().a
         val originX = reference.x.toDouble()
         val originY = reference.y.toDouble()
@@ -84,20 +102,45 @@ object StlParser {
             val cz = t.c.z.toDouble() - originZ
             signedVolume += (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) +
                 az * (bx * cy - by * cx)) / 6.0
+
+            val abx = bx - ax; val aby = by - ay; val abz = bz - az
+            val bcx = cx - bx; val bcy = cy - by; val bcz = cz - bz
+            val cax = ax - cx; val cay = ay - cy; val caz = az - cz
+            val crossX = aby * (cz - az) - abz * (cy - ay)
+            val crossY = abz * (cx - ax) - abx * (cz - az)
+            val crossZ = abx * (cy - ay) - aby * (cx - ax)
+            val twiceArea = sqrt(crossX * crossX + crossY * crossY + crossZ * crossZ)
+            val longestEdgeSquared = max(
+                max(abx * abx + aby * aby + abz * abz, bcx * bcx + bcy * bcy + bcz * bcz),
+                cax * cax + cay * cay + caz * caz,
+            )
+            surfaceAreaMm2 += twiceArea / 2.0
+            if (twiceArea <= longestEdgeSquared * DEGENERATE_RELATIVE_TOLERANCE) {
+                degenerateTriangleCount++
+            }
             addEdge(t.a, t.b); addEdge(t.b, t.c); addEdge(t.c, t.a)
         }
-        val closed = edgeCounts.isNotEmpty() &&
-            edgeCounts.values.all { it == 2 } &&
-            edgeDirections.values.all { it == 0 }
+        val integrity = MeshIntegrity(
+            openEdgeCount = edgeCounts.values.count { it == 1 },
+            nonManifoldEdgeCount = edgeCounts.values.count { it > 2 },
+            inconsistentEdgeCount = edgeCounts.entries.count { (edge, count) ->
+                count == 2 && edgeDirections[edge] != 0
+            },
+            degenerateTriangleCount = degenerateTriangleCount,
+        )
+        val closed = edgeCounts.isNotEmpty() && integrity.isValid
         val extentsFinite = (maxX - minX).isFinite() && (maxY - minY).isFinite() && (maxZ - minZ).isFinite()
         require(extentsFinite) { "The STL coordinates are outside the supported range." }
-        val volume = if (closed && signedVolume.isFinite()) abs(signedVolume) else 0.0
+        val volumeIsFinite = signedVolume.isFinite()
+        val volume = if (closed && volumeIsFinite) abs(signedVolume) else 0.0
         return StlModel(
-            triangles,
-            Point3(minX, minY, minZ),
-            Point3(maxX, maxY, maxZ),
-            volume,
-            closed && signedVolume.isFinite(),
+            triangles = triangles,
+            min = Point3(minX, minY, minZ),
+            max = Point3(maxX, maxY, maxZ),
+            volumeMm3 = volume,
+            isClosed = closed && volumeIsFinite,
+            surfaceAreaMm2 = surfaceAreaMm2,
+            integrity = integrity,
         )
     }
 
