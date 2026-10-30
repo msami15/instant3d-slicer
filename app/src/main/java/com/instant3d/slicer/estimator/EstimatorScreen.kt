@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, repository: ProfileRepository) {
+fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, repository: ProfileRepository, importError: String? = null) {
     val materials by repository.materials.collectAsState(emptyList())
     val printers by repository.printers.collectAsState(emptyList())
     val preferences by repository.preferences.collectAsState(null)
@@ -59,6 +59,7 @@ fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, r
                 Text("Offline geometric approximation, not slicer output.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
         if (model == null) {
             item {
                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
