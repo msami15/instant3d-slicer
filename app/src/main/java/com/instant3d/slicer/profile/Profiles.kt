@@ -113,20 +113,12 @@ class ProfileRepository(private val dao: ProfileDao) {
     }
 
     suspend fun saveMaterial(profile: MaterialProfile) {
-        require(profile.name.isNotBlank()) { "Enter a material name." }
-        require(profile.densityGPerCm3 > 0.0) { "Density must be greater than zero." }
-        require(profile.filamentDiameterMm > 0.0) { "Filament diameter must be greater than zero." }
-        require(profile.spoolWeightGrams > 0.0) { "Spool weight must be greater than zero." }
-        require(profile.spoolPricePkr >= 0.0) { "Price cannot be negative." }
+        validateMaterialProfile(profile)
         dao.saveMaterial(profile.copy(name = profile.name.trim()))
     }
 
     suspend fun savePrinter(profile: PrinterProfile) {
-        require(profile.name.isNotBlank()) { "Enter a printer name." }
-        require(profile.buildXmm > 0.0 && profile.buildYmm > 0.0 && profile.buildZmm > 0.0) {
-            "Build volume dimensions must be greater than zero."
-        }
-        require(profile.nozzleDiameterMm > 0.0) { "Nozzle diameter must be greater than zero." }
+        validatePrinterProfile(profile)
         dao.savePrinter(profile.copy(name = profile.name.trim()))
     }
 
@@ -165,4 +157,22 @@ class ProfileRepository(private val dao: ProfileDao) {
             PrinterProfile("bambu-x1-carbon", "Bambu Lab X1 Carbon", 256.0, 256.0, 256.0, 0.4),
         )
     }
+}
+
+internal fun validateMaterialProfile(profile: MaterialProfile) {
+    require(profile.name.isNotBlank()) { "Enter a material name." }
+    require(profile.densityGPerCm3.isFinite() && profile.densityGPerCm3 > 0.0) { "Density must be greater than zero." }
+    require(profile.filamentDiameterMm.isFinite() && profile.filamentDiameterMm > 0.0) { "Filament diameter must be greater than zero." }
+    require(profile.spoolWeightGrams.isFinite() && profile.spoolWeightGrams > 0.0) { "Spool weight must be greater than zero." }
+    require(profile.spoolPricePkr.isFinite() && profile.spoolPricePkr >= 0.0) { "Price cannot be negative." }
+}
+
+internal fun validatePrinterProfile(profile: PrinterProfile) {
+    require(profile.name.isNotBlank()) { "Enter a printer name." }
+    require(profile.buildXmm.isFinite() && profile.buildXmm > 0.0 &&
+        profile.buildYmm.isFinite() && profile.buildYmm > 0.0 &&
+        profile.buildZmm.isFinite() && profile.buildZmm > 0.0) {
+        "Build volume dimensions must be greater than zero."
+    }
+    require(profile.nozzleDiameterMm.isFinite() && profile.nozzleDiameterMm > 0.0) { "Nozzle diameter must be greater than zero." }
 }
