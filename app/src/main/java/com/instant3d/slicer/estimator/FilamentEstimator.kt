@@ -176,10 +176,11 @@ object FilamentEstimator {
     private fun estimateSupportVolume(model: StlModel, densityPercent: Double): Double {
         if (densityPercent == 0.0) return 0.0
         var projectedAreaHeight = 0.0
+        val outwardNormalSign = meshOrientationSign(model)
         for (triangle in model.triangles) {
             val geometry = triangleGeometry(triangle) ?: continue
             // Approximate supports under downward-facing facets steeper than 45°.
-            if (geometry.normalZ > -OVERHANG_NORMAL_THRESHOLD) continue
+            if (geometry.normalZ * outwardNormalSign > -OVERHANG_NORMAL_THRESHOLD) continue
             val centroidZ = (triangle.a.z + triangle.b.z + triangle.c.z) / 3.0 - model.min.z
             if (centroidZ <= 0.0) continue
             val horizontalProjectedArea = geometry.area * abs(geometry.normalZ)
@@ -191,6 +192,25 @@ object FilamentEstimator {
         // Triangle projections can overlap; cap supports to the free volume inside the model AABB.
         val freeEnvelope = max(0.0, envelopeVolume - model.volumeMm3)
         return min(projectedAreaHeight * fraction, freeEnvelope * fraction)
+    }
+
+    private fun meshOrientationSign(model: StlModel): Double {
+        val origin = model.triangles.first().a
+        var signedVolume = 0.0
+        for (t in model.triangles) {
+            val ax = t.a.x.toDouble() - origin.x
+            val ay = t.a.y.toDouble() - origin.y
+            val az = t.a.z.toDouble() - origin.z
+            val bx = t.b.x.toDouble() - origin.x
+            val by = t.b.y.toDouble() - origin.y
+            val bz = t.b.z.toDouble() - origin.z
+            val cx = t.c.x.toDouble() - origin.x
+            val cy = t.c.y.toDouble() - origin.y
+            val cz = t.c.z.toDouble() - origin.z
+            signedVolume += (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) +
+                az * (bx * cy - by * cx)) / 6.0
+        }
+        return if (signedVolume < 0.0) -1.0 else 1.0
     }
 
     private data class TriangleGeometry(val area: Double, val normalZ: Double)
