@@ -181,7 +181,7 @@ private fun SlicerApp() {
                     )
                 }
             }
-            composable("calculator") { EstimatorScreen(selectedModel, selectedFileName, importStlForEstimator, profileRepository) }
+            composable("calculator") { EstimatorScreen(selectedModel, selectedFileName, importStlForEstimator, profileRepository, importError) }
             composable("materials") { MaterialManagementScreen(profileRepository) }
             composable("printer_profiles") { PrinterProfilesScreen(profileRepository) }
             composable("settings") {
