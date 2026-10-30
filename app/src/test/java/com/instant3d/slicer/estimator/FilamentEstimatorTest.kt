@@ -49,7 +49,6 @@ class FilamentEstimatorTest {
     @Test
     fun hollowCylinderUsesKnownPolygonalTubeGeometry() {
         val tube = hollowCylinder(10.0, 8.0, 20.0, 96)
-        assertEquals(tube.volumeMm3, tube.volumeMm3, 0.0)
         assertTrue(tube.volumeMm3 > 0.0)
         assertTrue(tube.surfaceAreaMm2 > 0.0)
         val expectedVolume = polygonArea(10.0, 96) * 20.0 - polygonArea(8.0, 96) * 20.0
@@ -93,7 +92,7 @@ class FilamentEstimatorTest {
         assertTrue(thick.breakdown.bottomShellMm3 > thin.breakdown.bottomShellMm3)
 
         val thinBlock = boxModel(2f, 2f, 0.2f)
-        val split = estimate(thinBlock, settings.copy(layerHeightMm = 0.1, topShellLayers = 10, bottomShellLayers = 2))
+        val split = estimate(thinBlock, settings.copy(wallCount = 1, layerHeightMm = 0.1, topShellLayers = 10, bottomShellLayers = 2))
         assertTrue(split.breakdown.topShellMm3 > split.breakdown.bottomShellMm3)
         assertTrue(split.breakdown.topShellMm3 + split.breakdown.bottomShellMm3 <= thinBlock.volumeMm3)
         assertSane(split, thinBlock)
@@ -136,9 +135,6 @@ class FilamentEstimatorTest {
     }
 
     private fun estimate(model: StlModel = cube, settings: EstimateSettings = this.settings) =
-        FilamentEstimator.estimate(model, material, printer, settings)
-
-    private fun estimate(model: StlModel, settings: EstimateSettings) =
         FilamentEstimator.estimate(model, material, printer, settings)
 
     private fun estimate(model: StlModel, material: MaterialProfile) =
