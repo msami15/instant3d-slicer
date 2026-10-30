@@ -31,11 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.awaitEachGesture
 import androidx.compose.ui.input.pointer.awaitFirstDown
 import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.CancellationException
@@ -72,9 +72,10 @@ fun StlViewer(model: StlModel, modifier: Modifier = Modifier) {
     }
 
     val renderMesh = mesh
+    val context = LocalContext.current
     val surface = remember(renderMesh) {
         renderMesh?.let { data ->
-            StlSurfaceView(it = data) { message -> renderError = message }
+            StlSurfaceView(context, data) { message -> renderError = message }
         }
     }
 
@@ -124,7 +125,7 @@ fun StlViewer(model: StlModel, modifier: Modifier = Modifier) {
                                         previousDistance = distance
                                     }
                                 }
-                                event.changes.forEach(PointerInputChange::consume)
+                                event.changes.forEach { change -> change.consume() }
                             }
                         }
                     },
@@ -193,15 +194,6 @@ private class StlSurfaceView(
         renderMode = RENDERMODE_CONTINUOUSLY
     }
 
-    constructor(it: StlRenderMesh, onRenderError: (String) -> Unit) : this(
-        context = currentContext ?: error("A view context is required."),
-        mesh = it,
-        onRenderError = onRenderError,
-    )
-
-    companion object {
-        private var currentContext: Context? = null
-    }
 }
 
 private class StlGLRenderer(
