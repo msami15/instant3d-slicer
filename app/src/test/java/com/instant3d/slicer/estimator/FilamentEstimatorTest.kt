@@ -47,9 +47,9 @@ class FilamentEstimatorTest {
         val low = FilamentEstimator.estimate(cube, material, printer, settings.copy(infillPercent = 0.0))
         val high = FilamentEstimator.estimate(cube, material, printer, settings.copy(infillPercent = 50.0))
         assertEquals(5440.0, high.breakdown.infillMm3 - low.breakdown.infillMm3, 1e-6)
-        val otherPattern = FilamentEstimator.estimate(cube, material, printer, settings.copy(infillPattern = InfillPattern.GRID))
-        assertEquals(high.totalVolumeMm3, FilamentEstimator.estimate(cube, material, printer, settings.copy(infillPercent = 50.0)).totalVolumeMm3, 0.0)
-        assertEquals(low.totalVolumeMm3, otherPattern.totalVolumeMm3, 0.0)
+        val gyroid = FilamentEstimator.estimate(cube, material, printer, settings.copy(infillPercent = 15.0))
+        val grid = FilamentEstimator.estimate(cube, material, printer, settings.copy(infillPercent = 15.0, infillPattern = InfillPattern.GRID))
+        assertEquals(gyroid.totalVolumeMm3, grid.totalVolumeMm3, 0.0)
     }
 
     @Test
