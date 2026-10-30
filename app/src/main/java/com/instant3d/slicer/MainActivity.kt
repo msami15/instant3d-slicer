@@ -26,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,10 @@ import androidx.navigation.compose.rememberNavController
 import com.instant3d.slicer.stl.StlModel
 import com.instant3d.slicer.stl.StlParser
 import com.instant3d.slicer.stl.StlViewer
+import com.instant3d.slicer.profile.ProfileDatabase
+import com.instant3d.slicer.profile.ProfileRepository
+import com.instant3d.slicer.profile.MaterialManagementScreen
+import com.instant3d.slicer.profile.PrinterProfilesScreen
 import com.instant3d.slicer.ui.theme.Instant3DSlicerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -93,6 +98,8 @@ private fun SlicerApp() {
     val currentRoute = backStack?.destination?.route
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val profileRepository = remember { ProfileRepository(ProfileDatabase.get(context).profileDao()) }
+    LaunchedEffect(profileRepository) { withContext(Dispatchers.IO) { profileRepository.ensureDefaults() } }
     var selectedModel by remember { mutableStateOf<StlModel?>(null) }
     var selectedFileName by remember { mutableStateOf("") }
     var importError by remember { mutableStateOf<String?>(null) }
@@ -168,8 +175,15 @@ private fun SlicerApp() {
                 }
             }
             composable("calculator") { PlaceholderScreen("Calculator", "Your estimation workspace will appear here.") }
-            composable("materials") { PlaceholderScreen("Materials", "Manage filament profiles and spool costs.") }
-            composable("settings") { PlaceholderScreen("Settings", "Configure printer and estimate preferences.") }
+            composable("materials") { MaterialManagementScreen(profileRepository) }
+            composable("printer_profiles") { PrinterProfilesScreen(profileRepository) }
+            composable("settings") {
+                Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Choose and configure your local printer profile.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(onClick = { navController.navigate("printer_profiles") }) { Text("Manage printer profiles") }
+                }
+            }
         }
     }
 }
