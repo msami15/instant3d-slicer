@@ -51,6 +51,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val MAX_STL_BYTES = 20 * 1024 * 1024
+
+private fun readBytesAtMost(input: java.io.InputStream, maxBytes: Int): ByteArray {
+    val output = java.io.ByteArrayOutputStream(minOf(maxBytes, 64 * 1024))
+    val buffer = ByteArray(32 * 1024)
+    var total = 0
+    while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        if (count == 0) continue
+        require(count <= maxBytes - total) { "This file is larger than the 20 MB import limit." }
+        output.write(buffer, 0, count)
+        total += count
+    }
+    return output.toByteArray()
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,14 +108,14 @@ private fun SlicerApp() {
                             val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                             if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
                         } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Imported model.stl"
-                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                            ?: error("Android could not open this file.")
-                        require(bytes.size <= 150 * 1024 * 1024) { "This file is larger than the 150 MB import limit." }
+                        val bytes = context.contentResolver.openInputStream(uri)?.use {
+                            readBytesAtMost(it, MAX_STL_BYTES)
+                        } ?: error("Android could not open this file.")
                         name to StlParser.parse(bytes)
                     }
                     selectedFileName = result.first
                     selectedModel = result.second
-                    navController.navigate("model")
+                    navController.navigate("model") { launchSingleTop = true }
                 } catch (error: Exception) {
                     importError = error.message ?: "Unable to import this STL file."
                 } finally {
