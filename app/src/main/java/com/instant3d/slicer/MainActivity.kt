@@ -105,6 +105,7 @@ private fun SlicerApp() {
     var selectedFileName by remember { mutableStateOf("") }
     var importError by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
+    var openEstimatorAfterImport by remember { mutableStateOf(false) }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
@@ -125,16 +126,21 @@ private fun SlicerApp() {
                     val model = withContext(Dispatchers.Default) { StlParser.parse(bytes) }
                     selectedFileName = name
                     selectedModel = model
-                    navController.navigate("model") { launchSingleTop = true }
+                    val destination = if (openEstimatorAfterImport) "calculator" else "model"
+                    openEstimatorAfterImport = false
+                    navController.navigate(destination) { launchSingleTop = true }
                 } catch (error: Exception) {
                     importError = error.message ?: "Unable to import this STL file."
                 } finally {
                     importing = false
                 }
             }
+        } else {
+            openEstimatorAfterImport = false
         }
     }
-    val importStl: () -> Unit = { filePicker.launch(arrayOf("*/*")) }
+    val importStl: () -> Unit = { openEstimatorAfterImport = false; filePicker.launch(arrayOf("*/*")) }
+    val importStlForEstimator: () -> Unit = { openEstimatorAfterImport = true; filePicker.launch(arrayOf("*/*")) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -175,7 +181,7 @@ private fun SlicerApp() {
                     )
                 }
             }
-            composable("calculator") { EstimatorScreen(selectedModel, selectedFileName, importStl, profileRepository) }
+            composable("calculator") { EstimatorScreen(selectedModel, selectedFileName, importStlForEstimator, profileRepository) }
             composable("materials") { MaterialManagementScreen(profileRepository) }
             composable("printer_profiles") { PrinterProfilesScreen(profileRepository) }
             composable("settings") {
