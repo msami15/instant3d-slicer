@@ -50,7 +50,7 @@ fun MaterialManagementScreen(repository: ProfileRepository) {
     }
     val target = editor
     if (adding || target != null) {
-        MaterialDialog(target, onDismiss = { adding = false; editor = null; formError = null }) { name, density, diameter, weight, price ->
+        MaterialDialog(target, formError, onDismiss = { adding = false; editor = null; formError = null }) { name, density, diameter, weight, price ->
             scope.launch {
                 try {
                     repository.saveMaterial(MaterialProfile(
@@ -70,7 +70,7 @@ fun MaterialManagementScreen(repository: ProfileRepository) {
 }
 
 @Composable
-private fun MaterialDialog(initial: MaterialProfile?, onDismiss: () -> Unit, onSave: (String,String,String,String,String) -> Unit) {
+private fun MaterialDialog(initial: MaterialProfile?, error: String?, onDismiss: () -> Unit, onSave: (String,String,String,String,String) -> Unit) {
     var name by remember(initial?.id) { mutableStateOf(initial?.name ?: "") }
     var density by remember(initial?.id) { mutableStateOf(initial?.densityGPerCm3?.toString() ?: "") }
     var diameter by remember(initial?.id) { mutableStateOf(initial?.filamentDiameterMm?.toString() ?: "1.75") }
@@ -83,6 +83,7 @@ private fun MaterialDialog(initial: MaterialProfile?, onDismiss: () -> Unit, onS
             OutlinedTextField(diameter, { diameter=it }, label={Text("Filament diameter (mm)")}, singleLine=true)
             OutlinedTextField(weight, { weight=it }, label={Text("Spool weight (g)")}, singleLine=true)
             OutlinedTextField(price, { price=it }, label={Text("Spool price (PKR)")}, singleLine=true)
+            if (error != null) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     }, confirmButton={ TextButton({onSave(name,density,diameter,weight,price)}) {Text("Save")} }, dismissButton={TextButton(onDismiss){Text("Cancel")}})
 }
