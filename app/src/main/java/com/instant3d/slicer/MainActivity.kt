@@ -160,6 +160,8 @@ private fun SlicerApp() {
                         model = model,
                         onBack = { navController.popBackStack() },
                         onImportAnother = importStl,
+                        importing = importing,
+                        error = importError,
                     )
                 }
             }
@@ -246,7 +248,14 @@ private fun ProjectsScreen(onImport: () -> Unit, importing: Boolean, error: Stri
 }
 
 @Composable
-private fun ModelScreen(fileName: String, model: StlModel, onBack: () -> Unit, onImportAnother: () -> Unit) {
+private fun ModelScreen(
+    fileName: String,
+    model: StlModel,
+    onBack: () -> Unit,
+    onImportAnother: () -> Unit,
+    importing: Boolean,
+    error: String?,
+) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -279,7 +288,12 @@ private fun ModelScreen(fileName: String, model: StlModel, onBack: () -> Unit, o
                 )
             }
         }
-        Button(onClick = onImportAnother, modifier = Modifier.fillMaxWidth()) { Text("＋  Import another STL") }
+        if (error != null) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        Button(
+            onClick = onImportAnother,
+            enabled = !importing,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (importing) "Importing…" else "＋  Import another STL") }
     }
 }
 
