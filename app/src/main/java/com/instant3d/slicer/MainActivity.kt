@@ -268,7 +268,7 @@ private fun ModelScreen(
             Button(onClick = onBack) { Text("Back") }
         }
         StlViewer(model, Modifier.fillMaxWidth().weight(1f))
-        Text("Drag to rotate  •  Pinch to zoom  •  Drag to reposition", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Text("One finger: rotate  •  Two fingers: pan and pinch to zoom", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("MODEL DIMENSIONS", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
