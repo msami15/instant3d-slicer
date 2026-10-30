@@ -47,6 +47,10 @@ object StlParser {
         var maxY = Float.NEGATIVE_INFINITY
         var maxZ = Float.NEGATIVE_INFINITY
         var signedVolume = 0.0
+        val reference = triangles.first().a
+        val originX = reference.x.toDouble()
+        val originY = reference.y.toDouble()
+        val originZ = reference.z.toDouble()
         val edgeCounts = HashMap<String, Int>(triangles.size * 3)
         val edgeDirections = HashMap<String, Int>(triangles.size * 3)
 
@@ -69,13 +73,17 @@ object StlParser {
         triangles.forEach { t ->
             include(t.a); include(t.b); include(t.c)
             // Use a nearby reference point to reduce cancellation for translated meshes.
-            val ox = t.a.x.toDouble(); val oy = t.a.y.toDouble(); val oz = t.a.z.toDouble()
-            val bx = t.b.x.toDouble() - ox; val by = t.b.y.toDouble() - oy; val bz = t.b.z.toDouble() - oz
-            val cx = t.c.x.toDouble() - ox; val cy = t.c.y.toDouble() - oy; val cz = t.c.z.toDouble() - oz
-            signedVolume += (ox * (by * cz - bz * cy) + oy * (bz * cx - bx * cz) + oz * (bx * cy - by * cx) +
-                (bx * cy * 0.0)) / 6.0
-            // The origin-relative determinant is evaluated using the absolute origin translation term
-            // below; this expression is algebraically equivalent to dot(a, cross(b,c)).
+            val ax = t.a.x.toDouble() - originX
+            val ay = t.a.y.toDouble() - originY
+            val az = t.a.z.toDouble() - originZ
+            val bx = t.b.x.toDouble() - originX
+            val by = t.b.y.toDouble() - originY
+            val bz = t.b.z.toDouble() - originZ
+            val cx = t.c.x.toDouble() - originX
+            val cy = t.c.y.toDouble() - originY
+            val cz = t.c.z.toDouble() - originZ
+            signedVolume += (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) +
+                az * (bx * cy - by * cx)) / 6.0
             addEdge(t.a, t.b); addEdge(t.b, t.c); addEdge(t.c, t.a)
         }
         val closed = edgeCounts.isNotEmpty() &&
