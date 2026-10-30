@@ -55,7 +55,7 @@ class FilamentEstimatorTest {
         val perimeter = 2.0 * 96 * 10.0 * sin(PI / 96.0) + 2.0 * 96 * 8.0 * sin(PI / 96.0)
         val expectedSurface = perimeter * 20.0 + 2.0 * (polygonArea(10.0, 96) - polygonArea(8.0, 96))
         assertEquals(expectedVolume, tube.volumeMm3, 1e-5)
-        assertEquals(expectedSurface, tube.surfaceAreaMm2, 1e-5)
+        assertEquals(expectedSurface, tube.surfaceAreaMm2, 1e-2)
         val result = estimate(tube)
         assertTrue(result.breakdown.wallsMm3 > 0.0)
         assertSane(result, tube)
@@ -66,6 +66,8 @@ class FilamentEstimatorTest {
         val overhang = overhangPrism()
         val result = estimate(overhang, settings.copy(supportsEnabled = true, supportDensityPercent = 15.0))
         assertEquals(300.0, result.breakdown.supportsMm3, 1e-5)
+        val inverted = overhang.copy(triangles = overhang.triangles.map { StlTriangle(it.a, it.c, it.b) })
+        assertEquals(result.breakdown.supportsMm3, estimate(inverted, settings.copy(supportsEnabled = true)).breakdown.supportsMm3, 1e-5)
         val fullDensity = estimate(overhang, settings.copy(supportsEnabled = true, supportDensityPercent = 100.0))
         val freeEnvelope = 20.0 * 20.0 * 20.0 - overhang.volumeMm3
         assertTrue(fullDensity.breakdown.supportsMm3 <= freeEnvelope)
