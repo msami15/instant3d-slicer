@@ -1,6 +1,7 @@
 package com.instant3d.slicer.estimator
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,11 +39,12 @@ fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, r
     var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(materials, printers, preferences) {
-        if (preferences != null && materialId == null && materials.isNotEmpty()) {
-            materialId = materials.firstOrNull { it.id == preferences.defaultMaterialId }?.id ?: materials.first().id
+        val savedPreferences = preferences
+        if (savedPreferences != null && materialId == null && materials.isNotEmpty()) {
+            materialId = materials.firstOrNull { it.id == savedPreferences.defaultMaterialId }?.id ?: materials.first().id
         }
-        if (preferences != null && printerId == null && printers.isNotEmpty()) {
-            printerId = printers.firstOrNull { it.id == preferences.defaultPrinterId }?.id ?: printers.first().id
+        if (savedPreferences != null && printerId == null && printers.isNotEmpty()) {
+            printerId = printers.firstOrNull { it.id == savedPreferences.defaultPrinterId }?.id ?: printers.first().id
             printers.firstOrNull { it.id == printerId }?.let { nozzle = "%.2f".format(it.nozzleDiameterMm) }
         }
     }
@@ -154,7 +156,7 @@ fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, r
 }
 
 @Composable
-private fun EstimatorCard(title: String, content: @Composable Column.() -> Unit) {
+private fun EstimatorCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(title, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
