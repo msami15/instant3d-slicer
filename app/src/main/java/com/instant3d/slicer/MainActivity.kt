@@ -52,6 +52,7 @@ import com.instant3d.slicer.profile.ProfileDatabase
 import com.instant3d.slicer.profile.ProfileRepository
 import com.instant3d.slicer.profile.MaterialManagementScreen
 import com.instant3d.slicer.profile.PrinterProfilesScreen
+import com.instant3d.slicer.estimator.EstimatorScreen
 import com.instant3d.slicer.ui.theme.Instant3DSlicerTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -174,7 +175,7 @@ private fun SlicerApp() {
                     )
                 }
             }
-            composable("calculator") { PlaceholderScreen("Calculator", "Your estimation workspace will appear here.") }
+            composable("calculator") { EstimatorScreen(selectedModel, selectedFileName, importStl, profileRepository) }
             composable("materials") { MaterialManagementScreen(profileRepository) }
             composable("printer_profiles") { PrinterProfilesScreen(profileRepository) }
             composable("settings") {
