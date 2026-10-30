@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -271,22 +272,33 @@ private fun ModelScreen(
         StlViewer(model, Modifier.fillMaxWidth().weight(1f))
         Text("One finger: rotate  •  Two fingers: pan and pinch to zoom", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("MODEL DIMENSIONS", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DimensionCard("X", model.sizeX, Modifier.weight(1f))
-                    DimensionCard("Y", model.sizeY, Modifier.weight(1f))
-                    DimensionCard("Z", model.sizeZ, Modifier.weight(1f))
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("BOUNDING BOX · mm", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Row(Modifier.fillMaxWidth()) {
+                    Text("AXIS", modifier = Modifier.weight(0.65f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("MIN", modifier = Modifier.weight(1f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("MAX", modifier = Modifier.weight(1f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("SIZE", modifier = Modifier.weight(1f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                BoundingBoxRow("X", model.min.x, model.max.x, model.sizeX)
+                BoundingBoxRow("Y", model.min.y, model.max.y, model.sizeY)
+                BoundingBoxRow("Z", model.min.z, model.max.z, model.sizeZ)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    InfoValue("VOLUME", if (model.isClosed) String.format("%.3f cm³", model.volumeCm3) else "Unavailable")
+                    InfoValue("SURFACE AREA", String.format("%.2f cm²", model.surfaceAreaCm2))
                     InfoValue("TRIANGLES", model.triangles.size.toString())
-                    InfoValue("VOLUME", if (model.isClosed) String.format("%.2f cm³", model.volumeCm3) else "Unavailable")
                 }
-                Text(
-                    if (model.isClosed) "Mesh check: closed mesh — volume calculated" else "Mesh check: open or inconsistent edges — volume unavailable",
-                    color = if (model.isClosed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Text("MESH INTEGRITY", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                if (model.integrity.isValid) {
+                    Text("Watertight, consistently oriented mesh with no degenerate facets.", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        if (model.integrity.openEdgeCount > 0) IntegrityWarning("Open edges", model.integrity.openEdgeCount)
+                        if (model.integrity.nonManifoldEdgeCount > 0) IntegrityWarning("Non-manifold edges", model.integrity.nonManifoldEdgeCount)
+                        if (model.integrity.inconsistentEdgeCount > 0) IntegrityWarning("Inconsistently oriented edges", model.integrity.inconsistentEdgeCount)
+                        if (model.integrity.degenerateTriangleCount > 0) IntegrityWarning("Degenerate triangles", model.integrity.degenerateTriangleCount)
+                    }
+                }
             }
         }
         if (error != null) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -299,13 +311,22 @@ private fun ModelScreen(
 }
 
 @Composable
-private fun DimensionCard(axis: String, value: Float, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(axis, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(String.format("%.2f mm", value), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        }
+private fun BoundingBoxRow(axis: String, min: Float, max: Float, size: Float) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(axis, modifier = Modifier.weight(0.65f), fontWeight = FontWeight.SemiBold)
+        Text(String.format("%.2f", min), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+        Text(String.format("%.2f", max), modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+        Text(String.format("%.2f", size), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold)
     }
+}
+
+@Composable
+private fun IntegrityWarning(label: String, count: Int) {
+    Text(
+        "$label: $count",
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable
