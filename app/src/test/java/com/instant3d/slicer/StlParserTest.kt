@@ -52,8 +52,8 @@ class StlParserTest {
         assertTrue(model.isClosed)
         assertEquals(1.0 / 6.0, model.volumeMm3, 0.0001)
         assertEquals((1.5 + kotlin.math.sqrt(3.0) / 2.0), model.surfaceAreaMm2, 0.0001)
-        assertEquals(model.volumeMm3 / 1000.0, model.volumeCm3, 0.000001)
-        assertEquals(model.surfaceAreaMm2 / 100.0, model.surfaceAreaCm2, 0.000001)
+        assertEquals(1.0 / 6000.0, model.volumeCm3, 0.00000001)
+        assertEquals((1.5 + kotlin.math.sqrt(3.0) / 2.0) / 100.0, model.surfaceAreaCm2, 0.000001)
         assertEquals(0f, model.min.x, 0f)
         assertEquals(1f, model.max.z, 0f)
         assertTrue(model.integrity.isValid)
@@ -110,6 +110,7 @@ class StlParserTest {
         val model = StlParser.parse(stl)
 
         assertFalse(model.isClosed)
+        assertEquals(3, model.integrity.inconsistentEdgeCount)
         assertEquals(0.0, model.volumeMm3, 0.0)
     }
 
