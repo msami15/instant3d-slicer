@@ -51,6 +51,12 @@ class StlParserTest {
         assertEquals(1f, model.sizeZ, 0.0001f)
         assertTrue(model.isClosed)
         assertEquals(1.0 / 6.0, model.volumeMm3, 0.0001)
+        assertEquals((1.5 + kotlin.math.sqrt(3.0) / 2.0), model.surfaceAreaMm2, 0.0001)
+        assertEquals(model.volumeMm3 / 1000.0, model.volumeCm3, 0.000001)
+        assertEquals(model.surfaceAreaMm2 / 100.0, model.surfaceAreaCm2, 0.000001)
+        assertEquals(0f, model.min.x, 0f)
+        assertEquals(1f, model.max.z, 0f)
+        assertTrue(model.integrity.isValid)
     }
 
     @Test
@@ -69,6 +75,9 @@ class StlParserTest {
         assertEquals(2f, model.sizeX, 0.0001f)
         assertEquals(3f, model.sizeY, 0.0001f)
         assertFalse(model.isClosed)
+        assertEquals(3, model.integrity.openEdgeCount)
+        assertEquals(3.0, model.surfaceAreaMm2, 0.0001)
+        assertEquals(0.03, model.surfaceAreaCm2, 0.0001)
     }
 
 
@@ -102,6 +111,55 @@ class StlParserTest {
 
         assertFalse(model.isClosed)
         assertEquals(0.0, model.volumeMm3, 0.0)
+    }
+
+    @Test
+    fun reportsNonManifoldSharedEdge() {
+        fun facet(thirdVertex: String) = """
+            facet normal 0 0 1
+              outer loop
+                vertex 0 0 0
+                vertex 1 0 0
+                vertex $thirdVertex
+              endloop
+            endfacet
+        """.trimIndent()
+        val stl = """
+            solid nonmanifold
+            ${facet("0 1 0")}
+            ${facet("0 0 1")}
+            ${facet("0 -1 0")}
+            endsolid nonmanifold
+        """.trimIndent().toByteArray()
+
+        val model = StlParser.parse(stl)
+
+        assertFalse(model.isClosed)
+        assertEquals(1, model.integrity.nonManifoldEdgeCount)
+        assertEquals(6, model.integrity.openEdgeCount)
+        assertEquals(0.0, model.volumeCm3, 0.0)
+    }
+
+    @Test
+    fun reportsDegenerateFacetAndKeepsItsAreaAtZero() {
+        val stl = """
+            solid degenerate
+            facet normal 0 0 1
+              outer loop
+                vertex 0 0 0
+                vertex 1 0 0
+                vertex 1 0 0
+              endloop
+            endfacet
+            endsolid degenerate
+        """.trimIndent().toByteArray()
+
+        val model = StlParser.parse(stl)
+
+        assertEquals(1, model.integrity.degenerateTriangleCount)
+        assertFalse(model.isClosed)
+        assertEquals(0.0, model.surfaceAreaMm2, 0.0)
+        assertEquals(0.0, model.volumeCm3, 0.0)
     }
 
     @Test(expected = IllegalArgumentException::class)
