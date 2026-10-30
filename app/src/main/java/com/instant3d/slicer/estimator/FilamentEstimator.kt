@@ -131,6 +131,10 @@ object FilamentEstimator {
         require(model.sizeX > 0f && model.sizeY > 0f && model.sizeZ > 0f) {
             "The model must have positive dimensions on all axes."
         }
+        val envelopeVolume = model.sizeX.toDouble() * model.sizeY.toDouble() * model.sizeZ.toDouble()
+        require(envelopeVolume.isFinite() && model.volumeMm3 <= envelopeVolume + max(1e-6, envelopeVolume * 1e-6)) {
+            "Mesh volume exceeds its bounding-box volume; check the STL integrity."
+        }
         require(printer.buildXmm.isFinite() && printer.buildXmm > 0.0 &&
             printer.buildYmm.isFinite() && printer.buildYmm > 0.0 &&
             printer.buildZmm.isFinite() && printer.buildZmm > 0.0) {
