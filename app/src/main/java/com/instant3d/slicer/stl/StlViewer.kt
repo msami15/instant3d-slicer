@@ -1,95 +1,394 @@
 package com.instant3d.slicer.stl
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTransformGestures
+import android.content.Context
+import android.opengl.GLES20
+import android.opengl.GLSurfaceView
+import android.opengl.Matrix
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.awaitEachGesture
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.FloatBuffer
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.opengles.GL10
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 @Composable
 fun StlViewer(model: StlModel, modifier: Modifier = Modifier) {
-    var rotationX by remember(model) { mutableFloatStateOf(-0.45f) }
-    var rotationY by remember(model) { mutableFloatStateOf(0.65f) }
-    var zoom by remember(model) { mutableFloatStateOf(1f) }
-    var panX by remember(model) { mutableFloatStateOf(0f) }
-    var panY by remember(model) { mutableFloatStateOf(0f) }
+    var mesh by remember(model) { mutableStateOf<StlRenderMesh?>(null) }
+    var preparationError by remember(model) { mutableStateOf<String?>(null) }
+    var renderError by remember(model) { mutableStateOf<String?>(null) }
+    var wireframe by remember(model) { mutableStateOf(false) }
 
-    Surface(modifier = modifier, color = Color(0xFF0B100F), shape = RoundedCornerShape(18.dp)) {
-        Box(Modifier.fillMaxSize()) {
-            Canvas(
-                Modifier.fillMaxSize().pointerInput(model) {
-                    detectTransformGestures { _, pan, gestureZoom, _ ->
-                        rotationY += pan.x * 0.009f
-                        rotationX += pan.y * 0.009f
-                        zoom = (zoom * gestureZoom).coerceIn(0.25f, 8f)
-                        panX += pan.x * 0.35f
-                        panY += pan.y * 0.35f
-                    }
-                }
-            ) {
-                val centerX = (model.min.x + model.max.x) / 2f
-                val centerY = (model.min.y + model.max.y) / 2f
-                val centerZ = (model.min.z + model.max.z) / 2f
-                val largest = max(max(model.sizeX, model.sizeY), model.sizeZ).coerceAtLeast(0.001f)
-                val scale = minOf(size.width, size.height) * 0.68f / largest * zoom
-                val cosX = cos(rotationX); val sinX = sin(rotationX)
-                val cosY = cos(rotationY); val sinY = sin(rotationY)
+    LaunchedEffect(model) {
+        mesh = null
+        preparationError = null
+        renderError = null
+        try {
+            mesh = withContext(Dispatchers.Default) { StlRenderMesh.from(model) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            preparationError = error.message ?: "This model could not be prepared for rendering."
+        }
+    }
 
-                data class Rendered(val depth: Float, val path: Path, val shade: Float)
-                val stride = max(1, model.triangles.size / 24000)
-                val rendered = ArrayList<Rendered>(model.triangles.size / stride + 1)
+    val renderMesh = mesh
+    val surface = remember(renderMesh) {
+        renderMesh?.let { data ->
+            StlSurfaceView(it = data) { message -> renderError = message }
+        }
+    }
 
-                fun project(p: Point3): Triple<Float, Float, Float> {
-                    val x = p.x - centerX
-                    val y = p.y - centerY
-                    val z = p.z - centerZ
-                    val y1 = y * cosX - z * sinX
-                    val z1 = y * sinX + z * cosX
-                    val x2 = x * cosY + z1 * sinY
-                    val z2 = -x * sinY + z1 * cosY
-                    return Triple(size.width / 2f + x2 * scale + panX, size.height / 2f - y1 * scale + panY, z2)
-                }
-
-                model.triangles.forEachIndexed { index, tri ->
-                    if (index % stride == 0) {
-                        val a = project(tri.a); val b = project(tri.b); val c = project(tri.c)
-                        val ux = b.first - a.first; val uy = b.second - a.second
-                        val vx = c.first - a.first; val vy = c.second - a.second
-                        val cross = ux * vy - uy * vx
-                        val shade = (0.48f + 0.42f * (cross / (sqrt(cross * cross + 1f)))).coerceIn(0.22f, 0.95f)
-                        val path = Path().apply {
-                            moveTo(a.first, a.second); lineTo(b.first, b.second); lineTo(c.first, c.second); close()
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF0B100F))
+                .then(
+                    if (surface == null || renderError != null) Modifier
+                    else Modifier.pointerInput(surface) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            var previousDistance = 0f
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val active = event.changes.filter { it.pressed }
+                                if (active.isEmpty()) break
+                                when (active.size) {
+                                    1 -> {
+                                        val change = active[0]
+                                        val delta = change.position - change.previousPosition
+                                        surface.renderer.rotate(delta.x, delta.y)
+                                        previousDistance = 0f
+                                    }
+                                    else -> {
+                                        val centroidX = active.map { it.position.x }.average().toFloat()
+                                        val centroidY = active.map { it.position.y }.average().toFloat()
+                                        val previousCentroidX = active.map { it.previousPosition.x }.average().toFloat()
+                                        val previousCentroidY = active.map { it.previousPosition.y }.average().toFloat()
+                                        surface.renderer.pan(
+                                            centroidX - previousCentroidX,
+                                            centroidY - previousCentroidY,
+                                            size.width.toFloat(),
+                                            size.height.toFloat(),
+                                        )
+                                        val distance = active.map { change ->
+                                            val dx = change.position.x - centroidX
+                                            val dy = change.position.y - centroidY
+                                            sqrt(dx * dx + dy * dy)
+                                        }.average().toFloat() * 2f
+                                        if (previousDistance > 0f && distance > 0f) {
+                                            surface.renderer.zoomBy(distance / previousDistance)
+                                        }
+                                        previousDistance = distance
+                                    }
+                                }
+                                event.changes.forEach(PointerInputChange::consume)
+                            }
                         }
-                        rendered += Rendered((a.third + b.third + c.third) / 3f, path, shade)
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (renderMesh != null && surface != null && renderError == null) {
+                AndroidView(factory = { surface }, modifier = Modifier.fillMaxSize())
+                DisposableEffect(surface) {
+                    surface.onResume()
+                    onDispose { surface.onPause() }
+                }
+            } else {
+                val message = preparationError ?: renderError
+                if (message == null) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Text("Preparing 3D model…", color = Color.White)
                     }
+                } else {
+                    Text(
+                        "Unable to render this model. $message",
+                        modifier = Modifier.padding(24.dp),
+                        color = Color(0xFFFFB4AB),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
-                rendered.sortBy { it.depth }
-                rendered.forEach { triangle ->
-                    val base = triangle.shade
-                    drawPath(triangle.path, Color(red = 0.24f * base, green = 0.83f * base, blue = 0.69f * base), style = Fill)
-                    drawPath(triangle.path, Color(0xFF9AF0D7).copy(alpha = 0.18f), style = Stroke(width = 0.45f))
-                }
-                // Subtle ground reference.
-                drawLine(Color(0xFF26332F), Offset(size.width * 0.12f, size.height * 0.84f), Offset(size.width * 0.88f, size.height * 0.84f), 1.dp.toPx())
             }
         }
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = { surface?.renderer?.resetCamera() },
+                enabled = surface != null && renderError == null,
+                modifier = Modifier.weight(1f).height(44.dp),
+            ) { Text("Reset camera") }
+            Button(
+                onClick = { wireframe = !wireframe; surface?.renderer?.setWireframe(wireframe) },
+                enabled = surface != null && renderError == null,
+                modifier = Modifier.weight(1f).height(44.dp),
+            ) { Text(if (wireframe) "Show solid" else "Wireframe") }
+        }
+    }
+
+    LaunchedEffect(surface, wireframe) {
+        surface?.renderer?.setWireframe(wireframe)
+    }
+}
+
+private class StlSurfaceView(
+    context: Context,
+    mesh: StlRenderMesh,
+    onRenderError: (String) -> Unit,
+) : GLSurfaceView(context) {
+    val renderer = StlGLRenderer(mesh, onRenderError)
+
+    init {
+        setEGLContextClientVersion(2)
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+        preserveEGLContextOnPause = true
+        setRenderer(renderer)
+        renderMode = RENDERMODE_CONTINUOUSLY
+    }
+
+    constructor(it: StlRenderMesh, onRenderError: (String) -> Unit) : this(
+        context = currentContext ?: error("A view context is required."),
+        mesh = it,
+        onRenderError = onRenderError,
+    )
+
+    companion object {
+        private var currentContext: Context? = null
+    }
+}
+
+private class StlGLRenderer(
+    private val mesh: StlRenderMesh,
+    private val onRenderError: (String) -> Unit,
+) : GLSurfaceView.Renderer {
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val errorReported = AtomicBoolean(false)
+    @Volatile private var wireframe = false
+    @Volatile private var zoom = 1f
+    @Volatile private var rotationX = -25f
+    @Volatile private var rotationZ = 35f
+    @Volatile private var panX = 0f
+    @Volatile private var panY = 0f
+    private var program = 0
+    private var positionAttribute = -1
+    private var normalAttribute = -1
+    private var mvpUniform = -1
+    private var modelUniform = -1
+    private var colorUniform = -1
+    private var solidBuffer: FloatBuffer? = null
+    private var wireBuffer: FloatBuffer? = null
+    private var width = 1
+    private var height = 1
+    private var ready = false
+
+    fun setWireframe(enabled: Boolean) { wireframe = enabled }
+    fun rotate(dx: Float, dy: Float) {
+        rotationZ += dx * 0.45f
+        rotationX = (rotationX + dy * 0.45f).coerceIn(-89f, 89f)
+    }
+    fun zoomBy(factor: Float) {
+        if (factor.isFinite() && factor > 0f) zoom = (zoom * factor).coerceIn(0.3f, 8f)
+    }
+    fun pan(dx: Float, dy: Float, viewWidth: Float, viewHeight: Float) {
+        val distance = mesh.fitRadius / sin(Math.toRadians(22.5)).toFloat() * 1.12f / zoom
+        val unitsPerPixel = (2f * distance * tanHalfFov) / viewHeight.coerceAtLeast(1f)
+        panX += dx * unitsPerPixel
+        panY -= dy * unitsPerPixel
+    }
+    fun resetCamera() {
+        zoom = 1f
+        rotationX = -25f
+        rotationZ = 35f
+        panX = 0f
+        panY = 0f
+    }
+
+    override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        try {
+            GLES20.glClearColor(0.043f, 0.063f, 0.059f, 1f)
+            GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+            GLES20.glDepthFunc(GLES20.GL_LEQUAL)
+            program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER)
+            positionAttribute = GLES20.glGetAttribLocation(program, "aPosition")
+            normalAttribute = GLES20.glGetAttribLocation(program, "aNormal")
+            mvpUniform = GLES20.glGetUniformLocation(program, "uMvp")
+            modelUniform = GLES20.glGetUniformLocation(program, "uModel")
+            colorUniform = GLES20.glGetUniformLocation(program, "uColor")
+            require(positionAttribute >= 0 && normalAttribute >= 0 && mvpUniform >= 0 && modelUniform >= 0 && colorUniform >= 0) {
+                "The graphics driver could not initialize the 3D renderer."
+            }
+            solidBuffer = directBuffer(mesh.solidVertices)
+            wireBuffer = directBuffer(mesh.wireframeVertices)
+            ready = true
+        } catch (error: Exception) {
+            reportError(error)
+        }
+    }
+
+    override fun onSurfaceChanged(gl: GL10?, surfaceWidth: Int, surfaceHeight: Int) {
+        width = surfaceWidth.coerceAtLeast(1)
+        height = surfaceHeight.coerceAtLeast(1)
+        GLES20.glViewport(0, 0, width, height)
+    }
+
+    override fun onDrawFrame(gl: GL10?) {
+        if (!ready) return
+        try {
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+            GLES20.glUseProgram(program)
+
+            val modelMatrix = FloatArray(16).also { Matrix.setIdentityM(it, 0) }
+            Matrix.rotateM(modelMatrix, 0, rotationZ, 0f, 0f, 1f)
+            Matrix.rotateM(modelMatrix, 0, rotationX, 1f, 0f, 0f)
+
+            val cameraDistance = mesh.fitRadius / sin(Math.toRadians(22.5)).toFloat() * 1.12f / zoom
+            val directionLength = sqrt(4f * 4f + 6f * 6f + 4f * 4f)
+            val eyeX = cameraDistance * 4f / directionLength
+            val eyeY = -cameraDistance * 6f / directionLength
+            val eyeZ = cameraDistance * 4f / directionLength
+            val viewMatrix = FloatArray(16)
+            Matrix.setLookAtM(viewMatrix, 0, eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 0f, 1f)
+            Matrix.translateM(viewMatrix, 0, panX, panY, 0f)
+            val projectionMatrix = FloatArray(16)
+            Matrix.perspectiveM(projectionMatrix, 0, 45f, width.toFloat() / height, 0.01f, 100f)
+            val modelView = FloatArray(16)
+            val mvp = FloatArray(16)
+            Matrix.multiplyMM(modelView, 0, viewMatrix, 0, modelMatrix, 0)
+            Matrix.multiplyMM(mvp, 0, projectionMatrix, 0, modelView, 0)
+            GLES20.glUniformMatrix4fv(modelUniform, 1, false, modelMatrix, 0)
+            GLES20.glUniformMatrix4fv(mvpUniform, 1, false, mvp, 0)
+            GLES20.glUniform4f(colorUniform, 0.2f, 0.82f, 0.68f, 1f)
+
+            val buffer = if (wireframe) wireBuffer else solidBuffer
+            val data = buffer ?: return
+            val positions = data.duplicate().apply { position(0) }
+            val normals = data.duplicate().apply { position(3) }
+            GLES20.glEnableVertexAttribArray(positionAttribute)
+            GLES20.glEnableVertexAttribArray(normalAttribute)
+            GLES20.glVertexAttribPointer(positionAttribute, 3, GLES20.GL_FLOAT, false, 6 * 4, positions)
+            GLES20.glVertexAttribPointer(normalAttribute, 3, GLES20.GL_FLOAT, false, 6 * 4, normals)
+            if (wireframe) {
+                GLES20.glLineWidth(1.4f)
+                GLES20.glDrawArrays(GLES20.GL_LINES, 0, mesh.vertexCount * 2)
+            } else {
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, mesh.vertexCount)
+            }
+            GLES20.glDisableVertexAttribArray(positionAttribute)
+            GLES20.glDisableVertexAttribArray(normalAttribute)
+        } catch (error: Exception) {
+            ready = false
+            reportError(error)
+        }
+    }
+
+    private fun reportError(error: Exception) {
+        if (errorReported.compareAndSet(false, true)) {
+            mainHandler.post { onRenderError(error.message ?: "The device could not render this model.") }
+        }
+    }
+
+    private fun createProgram(vertexSource: String, fragmentSource: String): Int {
+        val vertex = compileShader(GLES20.GL_VERTEX_SHADER, vertexSource)
+        val fragment = compileShader(GLES20.GL_FRAGMENT_SHADER, fragmentSource)
+        val result = GLES20.glCreateProgram()
+        GLES20.glAttachShader(result, vertex)
+        GLES20.glAttachShader(result, fragment)
+        GLES20.glLinkProgram(result)
+        val status = IntArray(1)
+        GLES20.glGetProgramiv(result, GLES20.GL_LINK_STATUS, status, 0)
+        GLES20.glDeleteShader(vertex)
+        GLES20.glDeleteShader(fragment)
+        require(status[0] == GLES20.GL_TRUE) { "The device could not link the 3D renderer." }
+        return result
+    }
+
+    private fun compileShader(type: Int, source: String): Int {
+        val shader = GLES20.glCreateShader(type)
+        GLES20.glShaderSource(shader, source)
+        GLES20.glCompileShader(shader)
+        val status = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, status, 0)
+        require(status[0] == GLES20.GL_TRUE) {
+            GLES20.glGetShaderInfoLog(shader).ifBlank { "The device could not compile a 3D shader." }
+        }
+        return shader
+    }
+
+    private fun directBuffer(values: FloatArray): FloatBuffer =
+        ByteBuffer.allocateDirect(values.size * 4)
+            .order(ByteOrder.nativeOrder())
+            .asFloatBuffer()
+            .apply { put(values); position(0) }
+
+    companion object {
+        private const val tanHalfFov = 0.41421357f
+        private const val VERTEX_SHADER = """
+            uniform mat4 uMvp;
+            uniform mat4 uModel;
+            attribute vec3 aPosition;
+            attribute vec3 aNormal;
+            varying vec3 vNormal;
+            void main() {
+                gl_Position = uMvp * vec4(aPosition, 1.0);
+                vNormal = mat3(uModel) * aNormal;
+            }
+        """
+        private const val FRAGMENT_SHADER = """
+            precision mediump float;
+            uniform vec4 uColor;
+            varying vec3 vNormal;
+            void main() {
+                float diffuse = abs(dot(normalize(vNormal), normalize(vec3(0.35, 0.55, 0.75))));
+                float light = 0.24 + 0.76 * diffuse;
+                gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+            }
+        """
     }
 }
