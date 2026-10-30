@@ -119,6 +119,7 @@ class FilamentEstimatorTest {
         assertThrows(IllegalArgumentException::class.java) { estimate(cube, settings.copy(wallCount = 0)) }
         assertThrows(IllegalArgumentException::class.java) { estimate(cube, settings.copy(supportDensityPercent = Double.NaN)) }
         assertThrows(IllegalArgumentException::class.java) { estimate(cube.copy(isClosed = false)) }
+        assertThrows(IllegalArgumentException::class.java) { estimate(cube.copy(volumeMm3 = 8001.0)) }
         assertThrows(IllegalArgumentException::class.java) { estimate(cube, material.copy(spoolWeightGrams = 0.0)) }
         assertThrows(IllegalArgumentException::class.java) {
             FilamentEstimator.estimate(boxModel(300f, 20f, 20f), material, printer, settings)
