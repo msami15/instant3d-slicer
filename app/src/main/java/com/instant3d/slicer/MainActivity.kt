@@ -1,9 +1,12 @@
 package com.instant3d.slicer
 
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,9 +27,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,7 +43,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.instant3d.slicer.stl.StlModel
+import com.instant3d.slicer.stl.StlParser
+import com.instant3d.slicer.stl.StlViewer
 import com.instant3d.slicer.ui.theme.Instant3DSlicerTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,32 +73,79 @@ private fun SlicerApp() {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var selectedModel by remember { mutableStateOf<StlModel?>(null) }
+    var selectedFileName by remember { mutableStateOf("") }
+    var importError by remember { mutableStateOf<String?>(null) }
+    var importing by remember { mutableStateOf(false) }
+
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            importing = true
+            importError = null
+            scope.launch {
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        val name = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+                        } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Imported model.stl"
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            ?: error("Android could not open this file.")
+                        require(bytes.size <= 150 * 1024 * 1024) { "This file is larger than the 150 MB import limit." }
+                        name to StlParser.parse(bytes)
+                    }
+                    selectedFileName = result.first
+                    selectedModel = result.second
+                    navController.navigate("model")
+                } catch (error: Exception) {
+                    importError = error.message ?: "Unable to import this STL file."
+                } finally {
+                    importing = false
+                }
+            }
+        }
+    }
+    val importStl: () -> Unit = { filePicker.launch(arrayOf("*/*")) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                destinations.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Text(destination.symbol, fontSize = 20.sp) },
-                        label = { Text(destination.label) },
-                        alwaysShowLabel = true,
-                    )
+            if (currentRoute != "model") {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    destinations.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Text(destination.symbol, fontSize = 20.sp) },
+                            label = { Text(destination.label) },
+                            alwaysShowLabel = true,
+                        )
+                    }
                 }
             }
         },
     ) { padding ->
         NavHost(navController, startDestination = "home", modifier = Modifier.padding(padding)) {
-            composable("home") { HomeScreen(onNewProject = { navController.navigate("projects") }) }
-            composable("projects") { ProjectsScreen() }
+            composable("home") { HomeScreen(onImport = importStl, importing = importing, error = importError) }
+            composable("projects") { ProjectsScreen(onImport = importStl, importing = importing, error = importError) }
+            composable("model") {
+                selectedModel?.let { model ->
+                    ModelScreen(
+                        fileName = selectedFileName,
+                        model = model,
+                        onBack = { navController.popBackStack() },
+                        onImportAnother = importStl,
+                    )
+                }
+            }
             composable("calculator") { PlaceholderScreen("Calculator", "Your estimation workspace will appear here.") }
             composable("materials") { PlaceholderScreen("Materials", "Manage filament profiles and spool costs.") }
             composable("settings") { PlaceholderScreen("Settings", "Configure printer and estimate preferences.") }
@@ -94,7 +154,7 @@ private fun SlicerApp() {
 }
 
 @Composable
-private fun HomeScreen(onNewProject: () -> Unit) {
+private fun HomeScreen(onImport: () -> Unit, importing: Boolean, error: String?) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
@@ -114,13 +174,14 @@ private fun HomeScreen(onNewProject: () -> Unit) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("●", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
-                    Text("WORKSPACE READY", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("OFFLINE WORKSPACE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 }
-                Text("Start with a model", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text("Create a project to organize models and prepare material estimates.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = onNewProject, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Text("＋   New project")
+                Text("Inspect a 3D model", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text("Import an STL file to view the model, check its dimensions and inspect its mesh.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onImport, enabled = !importing, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
+                    Text(if (importing) "Importing…" else "＋   Import STL")
                 }
+                if (error != null) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -131,7 +192,7 @@ private fun HomeScreen(onNewProject: () -> Unit) {
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("ESTIMATION STATUS", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Text("Estimates will be marked as approximate until validated against a slicer.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+            Text("Model measurements are available in this phase. Filament estimates will be added separately.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -147,7 +208,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun ProjectsScreen() {
+private fun ProjectsScreen(onImport: () -> Unit, importing: Boolean, error: String?) {
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
         Text("Your model workspace", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -156,12 +217,70 @@ private fun ProjectsScreen() {
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
         ) {
-            Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("▦", color = MaterialTheme.colorScheme.primary, fontSize = 28.sp)
                 Text("No projects yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Projects you create will be organized here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Import an STL file to start inspecting a model.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onImport, enabled = !importing) { Text(if (importing) "Importing…" else "Import STL model") }
+                if (error != null) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         }
+    }
+}
+
+@Composable
+private fun ModelScreen(fileName: String, model: StlModel, onBack: () -> Unit, onImportAnother: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text("MODEL INSPECTOR", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text(fileName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            Button(onClick = onBack) { Text("Back") }
+        }
+        StlViewer(model, Modifier.fillMaxWidth().weight(1f))
+        Text("Drag to rotate  •  Pinch to zoom  •  Drag to reposition", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("MODEL DIMENSIONS", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DimensionCard("X", model.sizeX, Modifier.weight(1f))
+                    DimensionCard("Y", model.sizeY, Modifier.weight(1f))
+                    DimensionCard("Z", model.sizeZ, Modifier.weight(1f))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    InfoValue("TRIANGLES", model.triangles.size.toString())
+                    InfoValue("VOLUME", if (model.isClosed) String.format("%.2f cm³", model.volumeCm3) else "Unavailable")
+                }
+                Text(
+                    if (model.isClosed) "Mesh check: closed mesh — volume calculated" else "Mesh check: open or inconsistent edges — volume unavailable",
+                    color = if (model.isClosed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        Button(onClick = onImportAnother, modifier = Modifier.fillMaxWidth()) { Text("＋  Import another STL") }
+    }
+}
+
+@Composable
+private fun DimensionCard(axis: String, value: Float, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(axis, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(String.format("%.2f mm", value), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        }
+    }
+}
+
+@Composable
+private fun InfoValue(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
     }
 }
 
