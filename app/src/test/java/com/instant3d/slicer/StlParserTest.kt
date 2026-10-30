@@ -96,7 +96,7 @@ class StlParserTest {
               endloop
             endfacet
         """.trimIndent()
-        val stl = "solid duplicate\\n$facet\\n$facet\\nendsolid duplicate".toByteArray()
+        val stl = "solid duplicate\n$facet\n$facet\nendsolid duplicate".toByteArray()
 
         val model = StlParser.parse(stl)
 
