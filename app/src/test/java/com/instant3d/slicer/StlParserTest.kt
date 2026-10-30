@@ -71,6 +71,48 @@ class StlParserTest {
         assertFalse(model.isClosed)
     }
 
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsAsciiWithUnstructuredVertices() {
+        val stl = """
+            solid malformed
+            vertex 0 0 0
+            vertex 1 0 0
+            vertex 0 1 0
+            endsolid malformed
+        """.trimIndent().toByteArray()
+
+        StlParser.parse(stl)
+    }
+
+    @Test
+    fun duplicateFacetsWithSameWindingAreNotReportedAsClosed() {
+        val facet = """
+            facet normal 0 0 1
+              outer loop
+                vertex 0 0 0
+                vertex 1 0 0
+                vertex 0 1 0
+              endloop
+            endfacet
+        """.trimIndent()
+        val stl = "solid duplicate\\n$facet\\n$facet\\nendsolid duplicate".toByteArray()
+
+        val model = StlParser.parse(stl)
+
+        assertFalse(model.isClosed)
+        assertEquals(0.0, model.volumeMm3, 0.0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsEmptyBinaryStl() {
+        val bytes = ByteBuffer.allocate(84).order(ByteOrder.LITTLE_ENDIAN)
+        bytes.put(0, 's'.code.toByte())
+        bytes.putInt(80, 0)
+
+        StlParser.parse(bytes.array())
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejectsInvalidFile() {
         StlParser.parse("not an stl".toByteArray())
