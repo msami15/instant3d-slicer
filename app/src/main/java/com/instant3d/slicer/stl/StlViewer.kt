@@ -47,6 +47,7 @@ import java.nio.FloatBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -73,7 +74,7 @@ fun StlViewer(model: StlModel, modifier: Modifier = Modifier) {
 
     val renderMesh = mesh
     val context = LocalContext.current
-    val surface = remember(renderMesh) {
+    val surface = remember(renderMesh, context) {
         renderMesh?.let { data ->
             StlSurfaceView(context, data) { message -> renderError = message }
         }
@@ -229,7 +230,8 @@ private class StlGLRenderer(
         if (factor.isFinite() && factor > 0f) zoom = (zoom * factor).coerceIn(0.3f, 8f)
     }
     fun pan(dx: Float, dy: Float, viewWidth: Float, viewHeight: Float) {
-        val distance = mesh.fitRadius / sin(Math.toRadians(22.5)).toFloat() * 1.12f / zoom
+        val aspect = viewWidth / viewHeight.coerceAtLeast(1f)
+        val distance = fittedDistance(aspect) / zoom
         val unitsPerPixel = (2f * distance * tanHalfFov) / viewHeight.coerceAtLeast(1f)
         panX += dx * unitsPerPixel
         panY -= dy * unitsPerPixel
@@ -240,6 +242,11 @@ private class StlGLRenderer(
         rotationZ = 35f
         panX = 0f
         panY = 0f
+    }
+
+    private fun fittedDistance(aspect: Float): Float {
+        val halfAngle = atan(tanHalfFov * minOf(aspect.coerceAtLeast(0.01f), 1f))
+        return mesh.fitRadius / sin(halfAngle).coerceAtLeast(0.01f) * 1.12f
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -280,7 +287,7 @@ private class StlGLRenderer(
             Matrix.rotateM(modelMatrix, 0, rotationZ, 0f, 0f, 1f)
             Matrix.rotateM(modelMatrix, 0, rotationX, 1f, 0f, 0f)
 
-            val cameraDistance = mesh.fitRadius / sin(Math.toRadians(22.5)).toFloat() * 1.12f / zoom
+            val cameraDistance = fittedDistance(width.toFloat() / height.toFloat()) / zoom
             val directionLength = sqrt(4f * 4f + 6f * 6f + 4f * 4f)
             val eyeX = cameraDistance * 4f / directionLength
             val eyeY = -cameraDistance * 6f / directionLength
