@@ -2,7 +2,6 @@ package com.instant3d.slicer.estimator
 
 import com.instant3d.slicer.profile.MaterialProfile
 import com.instant3d.slicer.profile.PrinterProfile
-import com.instant3d.slicer.stl.Point3
 import com.instant3d.slicer.stl.StlModel
 import com.instant3d.slicer.stl.StlTriangle
 import kotlin.math.abs
@@ -53,6 +52,7 @@ data class PrintEstimate(
 object FilamentEstimator {
     private const val MAX_WALLS = 20
     private const val MAX_SHELL_LAYERS = 50
+    private const val HORIZONTAL_FACE_NORMAL_THRESHOLD = 0.999
     private val OVERHANG_NORMAL_THRESHOLD = sqrt(0.5)
 
     fun estimate(
@@ -65,20 +65,21 @@ object FilamentEstimator {
 
         val modelVolume = model.volumeMm3
         val wallThickness = settings.wallCount * settings.nozzleDiameterMm
-        val rawWallVolume = model.surfaceAreaMm2 * wallThickness
-        val wallVolume = min(modelVolume, rawWallVolume)
+        val sideSurfaceArea = estimateWallSurfaceArea(model)
+        val wallVolume = min(modelVolume, sideSurfaceArea * wallThickness)
 
         val remainingAfterWalls = max(0.0, modelVolume - wallVolume)
         val footprintMm2 = model.sizeX.toDouble() * model.sizeY.toDouble()
         val topRaw = footprintMm2 * settings.topShellLayers * settings.layerHeightMm
-        val topVolume = min(remainingAfterWalls, topRaw)
-        val remainingAfterTop = remainingAfterWalls - topVolume
         val bottomRaw = footprintMm2 * settings.bottomShellLayers * settings.layerHeightMm
-        val bottomVolume = min(remainingAfterTop, bottomRaw)
-
-        val coreVolume = max(0.0, remainingAfterTop - bottomVolume)
-        val infillVolume = coreVolume * (settings.infillPercent / 100.0)
-        val supportsVolume = if (settings.supportsEnabled) {
+        // Share available shell volume proportionally if top/bottom shells overlap in thin models.
+        val shellTotalRaw = topRaw + bottomRaw
+        val shellScale = if (shellTotalRaw > 0.0) min(1.0, remainingAfterWalls / shellTotalRaw) else 0.0
+        val topVolume = topRaw * shellScale
+        val bottomVolume = bottomRaw * shellScale
+        val coreVolume = max(0.0, remainingAfterWalls - topVolume - bottomVolume)
+        val infillVolume = coreVolume * settings.infillPercent / 100.0
+        val supportVolume = if (settings.supportsEnabled) {
             estimateSupportVolume(model, settings.supportDensityPercent)
         } else 0.0
 
@@ -87,13 +88,16 @@ object FilamentEstimator {
             infillMm3 = infillVolume,
             topShellMm3 = topVolume,
             bottomShellMm3 = bottomVolume,
-            supportsMm3 = supportsVolume,
+            supportsMm3 = supportVolume,
         )
         val totalVolume = breakdown.totalMm3
-        val weightGrams = (totalVolume / 1000.0) * material.densityGPerCm3
-        val filamentCrossSectionMm2 = Math.PI * (material.filamentDiameterMm / 2.0).let { it * it }
-        val filamentLengthMeters = totalVolume / filamentCrossSectionMm2 / 1000.0
-        val cost = (weightGrams / material.spoolWeightGrams) * material.spoolPricePkr
+        val weightGrams = totalVolume / 1000.0 * material.densityGPerCm3
+        val filamentAreaMm2 = Math.PI * (material.filamentDiameterMm / 2.0) * (material.filamentDiameterMm / 2.0)
+        val filamentLengthMeters = totalVolume / filamentAreaMm2 / 1000.0
+        val cost = weightGrams / material.spoolWeightGrams * material.spoolPricePkr
+        require(totalVolume.isFinite() && weightGrams.isFinite() && filamentLengthMeters.isFinite() && cost.isFinite()) {
+            "The estimate exceeds the supported numeric range; check your profile values."
+        }
 
         return PrintEstimate(
             modelVolumeMm3 = modelVolume,
@@ -113,14 +117,24 @@ object FilamentEstimator {
         settings: EstimateSettings,
     ) {
         require(model.triangles.isNotEmpty()) { "Import a non-empty STL model first." }
-        require(model.integrity.isValid && model.isClosed && model.volumeMm3 > 0.0) {
+        require(model.integrity.isValid && model.isClosed && model.volumeMm3.isFinite() && model.volumeMm3 > 0.0) {
             "A closed, consistently oriented mesh is required for this estimate."
         }
+        require(
+            model.min.x.isFinite() && model.min.y.isFinite() && model.min.z.isFinite() &&
+                model.max.x.isFinite() && model.max.y.isFinite() && model.max.z.isFinite() &&
+                model.sizeX.isFinite() && model.sizeY.isFinite() && model.sizeZ.isFinite(),
+        ) { "The model has non-finite bounds." }
         require(model.surfaceAreaMm2.isFinite() && model.surfaceAreaMm2 > 0.0) {
             "The model has no measurable surface area."
         }
         require(model.sizeX > 0f && model.sizeY > 0f && model.sizeZ > 0f) {
             "The model must have positive dimensions on all axes."
+        }
+        require(printer.buildXmm.isFinite() && printer.buildXmm > 0.0 &&
+            printer.buildYmm.isFinite() && printer.buildYmm > 0.0 &&
+            printer.buildZmm.isFinite() && printer.buildZmm > 0.0) {
+            "Printer build dimensions must be positive."
         }
         require(model.sizeX <= printer.buildXmm && model.sizeY <= printer.buildYmm && model.sizeZ <= printer.buildZmm) {
             "The model's bounding box exceeds the selected printer's build volume."
@@ -129,9 +143,8 @@ object FilamentEstimator {
         require(material.filamentDiameterMm.isFinite() && material.filamentDiameterMm > 0.0) { "Filament diameter must be greater than zero." }
         require(material.spoolWeightGrams.isFinite() && material.spoolWeightGrams > 0.0) { "Spool weight must be greater than zero." }
         require(material.spoolPricePkr.isFinite() && material.spoolPricePkr >= 0.0) { "Spool price cannot be negative." }
-        require(printer.buildXmm.isFinite() && printer.buildXmm > 0.0 &&
-            printer.buildYmm.isFinite() && printer.buildYmm > 0.0 &&
-            printer.buildZmm.isFinite() && printer.buildZmm > 0.0) { "Printer build dimensions must be positive." }
+        val filamentArea = Math.PI * (material.filamentDiameterMm / 2.0) * (material.filamentDiameterMm / 2.0)
+        require(filamentArea.isFinite() && filamentArea > 0.0) { "Filament diameter is outside the supported numeric range." }
         require(settings.nozzleDiameterMm.isFinite() && settings.nozzleDiameterMm > 0.0) { "Nozzle diameter must be greater than zero." }
         require(settings.layerHeightMm.isFinite() && settings.layerHeightMm >= 0.04 &&
             settings.layerHeightMm <= settings.nozzleDiameterMm) {
@@ -147,19 +160,37 @@ object FilamentEstimator {
         }
     }
 
+    /**
+     * Side-shell proxy: horizontal facets are assigned to top/bottom shells so their area
+     * is not counted again as wall material.
+     */
+    private fun estimateWallSurfaceArea(model: StlModel): Double {
+        var area = 0.0
+        for (triangle in model.triangles) {
+            val geometry = triangleGeometry(triangle) ?: continue
+            if (abs(geometry.normalZ) < HORIZONTAL_FACE_NORMAL_THRESHOLD) area += geometry.area
+        }
+        return area
+    }
+
     private fun estimateSupportVolume(model: StlModel, densityPercent: Double): Double {
         if (densityPercent == 0.0) return 0.0
         var projectedAreaHeight = 0.0
         for (triangle in model.triangles) {
             val geometry = triangleGeometry(triangle) ?: continue
-            // A downward-facing facet steeper than 45° is treated as an unsupported overhang.
+            // Approximate supports under downward-facing facets steeper than 45°.
             if (geometry.normalZ > -OVERHANG_NORMAL_THRESHOLD) continue
             val centroidZ = (triangle.a.z + triangle.b.z + triangle.c.z) / 3.0 - model.min.z
             if (centroidZ <= 0.0) continue
             val horizontalProjectedArea = geometry.area * abs(geometry.normalZ)
+            // For one triangle this is the projected integral of height above the build plate.
             projectedAreaHeight += horizontalProjectedArea * centroidZ
         }
-        return projectedAreaHeight * (densityPercent / 100.0)
+        val fraction = densityPercent / 100.0
+        val envelopeVolume = model.sizeX.toDouble() * model.sizeY.toDouble() * model.sizeZ.toDouble()
+        // Triangle projections can overlap; cap supports to the free volume inside the model AABB.
+        val freeEnvelope = max(0.0, envelopeVolume - model.volumeMm3)
+        return min(projectedAreaHeight * fraction, freeEnvelope * fraction)
     }
 
     private data class TriangleGeometry(val area: Double, val normalZ: Double)
