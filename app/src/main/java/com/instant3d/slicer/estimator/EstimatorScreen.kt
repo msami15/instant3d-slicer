@@ -38,9 +38,11 @@ fun EstimatorScreen(model: StlModel?, modelName: String, onImport: () -> Unit, r
     var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(materials, printers, preferences) {
-        if (materialId == null) materialId = preferences?.defaultMaterialId ?: materials.firstOrNull()?.id
-        if (printerId == null) {
-            printerId = preferences?.defaultPrinterId ?: printers.firstOrNull()?.id
+        if (preferences != null && materialId == null && materials.isNotEmpty()) {
+            materialId = materials.firstOrNull { it.id == preferences.defaultMaterialId }?.id ?: materials.first().id
+        }
+        if (preferences != null && printerId == null && printers.isNotEmpty()) {
+            printerId = printers.firstOrNull { it.id == preferences.defaultPrinterId }?.id ?: printers.first().id
             printers.firstOrNull { it.id == printerId }?.let { nozzle = "%.2f".format(it.nozzleDiameterMm) }
         }
     }
