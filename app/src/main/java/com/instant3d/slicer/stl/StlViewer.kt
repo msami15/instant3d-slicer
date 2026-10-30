@@ -37,6 +37,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,6 +76,7 @@ fun StlViewer(model: StlModel, modifier: Modifier = Modifier) {
 
     val renderMesh = mesh
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val surface = remember(renderMesh, context) {
         renderMesh?.let { data ->
             StlSurfaceView(context, data) { message -> renderError = message }
@@ -134,9 +138,19 @@ fun StlViewer(model: StlModel, modifier: Modifier = Modifier) {
         ) {
             if (renderMesh != null && surface != null && renderError == null) {
                 AndroidView(factory = { surface }, modifier = Modifier.fillMaxSize())
-                DisposableEffect(surface) {
-                    surface.onResume()
-                    onDispose { surface.onPause() }
+                DisposableEffect(surface, lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        when (event) {
+                            Lifecycle.Event.ON_RESUME -> surface.onResume()
+                            Lifecycle.Event.ON_PAUSE -> surface.onPause()
+                            else -> Unit
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                        surface.onPause()
+                    }
                 }
             } else {
                 val message = preparationError ?: renderError
