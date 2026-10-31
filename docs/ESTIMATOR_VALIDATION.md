@@ -8,12 +8,12 @@ These measurements were not independently reproduced here. No OrcaSlicer measure
 
 ## Reported real-world results
 
-Error convention used in every table:
+Error convention used in every table (as requested): “Absolute error” is the signed difference, not an absolute-value magnitude.
 
-- Error (g) = Instant3D Slicer grams − Bambu Studio grams
-- Percentage error (%) = Error ÷ Bambu Studio grams × 100
+- Absolute error (g) = Instant3D Slicer grams − Bambu Studio grams
+- Percentage error (%) = (Instant3D Slicer grams − Bambu Studio grams) ÷ Bambu Studio grams × 100
 
-| Test | Geometry | Infill | Pattern | Walls | Top / bottom | Layer height | Bambu Studio (g) | Instant3D Slicer (g) | Error (g) | Percentage error | Notes |
+| Test | Geometry | Infill | Pattern | Walls | Top / bottom | Layer height | Bambu Studio (g) | Instant3D Slicer (g) | Absolute error (App−Bambu, g) | Percentage error | Notes |
 |---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---|
 | 1 | 20 × 20 × 20 mm cube | 15% | Gyroid | 2 | 4 / 4 | 0.2 mm | 3.96 | 3.71 | -0.25 | -6.31% | Other profile/version details, nozzle, material density and support setting were not included in the report. |
 | 2 | Different STL; geometry not documented | 100% | Not documented | Not documented | Not documented | Not documented | 5.62 | 5.81 | +0.19 | +3.38% | This is not the cube from Test 1. Other settings and geometry are unknown. |
@@ -22,7 +22,11 @@ Error convention used in every table:
 
 The opposite error signs show that the two observations do not support applying a single global correction. They do not identify the cause of either error because Test 2 lacks geometry and settings, and Test 1 lacks selected material density, nozzle, support setting, application versions, and file/profile identifiers.
 
-There is also an unresolved reproducibility gap for Test 1: with the current code, a 20 mm cube, 0.4 mm nozzle, 2 walls, 4/4 shell layers, 0.2 mm layers, 15% infill, no supports, and the built-in PLA density of 1.24 g/cm³ produces 2,832 mm³ and 3.51168 g. The reported app result is 3.71 g. This does not prove a calculation bug: the actual selected density, settings, or app revision may have differed. Record those details and the app commit in the next run; do not replace the supplied measurement.
+There is also an unresolved reproducibility gap for Test 1: with the current code, a 20 mm cube, 0.4 mm nozzle, 2 walls, 4/4 shell layers, 0.2 mm layers, 15% infill, supports off, and built-in PLA density 1.24 g/cm³ produces 2,832 mm³ and 3.51168 g. The reported app result is 3.71 g. A different selected density could explain that app/source gap, but the density was not reported, so this is unconfirmed.
+
+Likely explanation for the negative slicer error is that the geometric model omits real extrusion-path effects such as overlap, line width differing from nozzle diameter, and gap/skin fill. For this cube the XY footprint is exact, but the simplified wall and shell proxies still do not reproduce sliced toolpaths. The missing material/profile/version details prevent attributing the full -0.25 g to any one factor.
+
+For Test 2, 100% infill makes the current no-support model-material estimate approach the STL mesh volume. An app estimate above Bambu Studio could result from the mesh-volume × density estimate exceeding the slicer's realized path mass, from different density or profile settings, or from differences in what each displayed mass includes. Because the second model's geometry and nearly all settings are unknown, none of these causes can be confirmed. The opposite error signs are consistent with geometry- and setting-dependent error, but two observations are not enough to establish that trend.
 
 ## Review of the current mathematics
 
@@ -100,7 +104,7 @@ The G3 polygon construction is intentional: it makes the hollow geometry determi
 
 For each sweep below, keep all other baseline settings fixed: G1 cube, 0.4 mm nozzle, 0.2 mm layer height, 2 walls, 4/4 shells, 15% Gyroid, supports off, PLA 1.240 g/cm³, 1.75 mm filament. In the geometry sweep, use those same settings for each model. Do not infer values for unrecorded tests.
 
-| Sweep | Geometry | Infill / pattern | Walls | Top / bottom | Bambu Studio (g) | Instant3D Slicer (g) | Error (g) | Percentage error |
+| Sweep | Geometry | Infill / pattern | Walls | Top / bottom | Bambu Studio (g) | Instant3D Slicer (g) | Absolute error (App−Bambu, g) | Percentage error |
 |---|---|---|---:|---|---:|---:|---:|---:|
 | Infill | G1 cube | 10% Gyroid | 2 | 4 / 4 |  |  |  |  |
 | Infill | G1 cube | 15% Gyroid | 2 | 4 / 4 |  |  |  |  |
