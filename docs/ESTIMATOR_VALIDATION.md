@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Two Bambu Studio comparisons were reported by the user on 2026-10-31. Test 1 includes its model and main print settings. Test 2 is a separate STL with only its infill percentage documented. Missing values remain explicitly unknown.
+The user has supplied two earlier Bambu Studio comparisons and a six-point infill sweep for the same calibration cube. The separate earlier 100% infill STL remains distinct from the 100% cube sweep row. Missing settings and patterns remain explicitly unknown.
 
 These measurements were not independently reproduced here. No OrcaSlicer measurements are available. The results below are recorded, not used to tune the estimator.
 
@@ -18,9 +18,29 @@ Error convention used in every table (as requested): “Absolute error” is the
 | 1 | 20 × 20 × 20 mm cube | 15% | Gyroid | 2 | 4 / 4 | 0.2 mm | 3.96 | 3.71 | -0.25 | -6.31% | Other profile/version details, nozzle, material density and support setting were not included in the report. |
 | 2 | Different STL; geometry not documented | 100% | Not documented | Not documented | Not documented | Not documented | 5.62 | 5.81 | +0.19 | +3.38% | This is not the cube from Test 1. Other settings and geometry are unknown. |
 
+
+## Calibration cube — infill sweep
+
+The following are reported measurements for the same 20 × 20 × 20 mm calibration cube. The pattern is confirmed only for the 15% Gyroid and 50% Grid rows. No other settings, profile values, app/slicer versions, support state, or STL hash were supplied for this sweep; the repeated 15% readings match Test 1.
+
+| Infill | Pattern | Bambu Studio (g) | Instant3D Slicer (g) | Absolute difference (g) | Signed error (App−Bambu, g) | Percentage error |
+|---:|---|---:|---:|---:|---:|---:|
+| 5% | Unknown | 3.44 | 3.01 | 0.43 | -0.43 | -12.50% |
+| 15% | Gyroid | 3.96 | 3.71 | 0.25 | -0.25 | -6.31% |
+| 25% | Unknown | 4.59 | 4.41 | 0.18 | -0.18 | -3.92% |
+| 50% | Grid | 6.27 | 6.16 | 0.11 | -0.11 | -1.75% |
+| 75% | Unknown | 7.90 | 7.91 | 0.01 | +0.01 | +0.13% |
+| 100% | Unknown | 9.55 | 9.66 | 0.11 | +0.11 | +1.15% |
+
+The provisional mean absolute percentage error (unweighted arithmetic mean of the six absolute percentage errors) is **4.29%**. It is provisional: patterns are unknown for four rows, other settings/profile data are missing, and the runs have not been independently reproduced.
+
+The signed error moves from -0.43 g at 5% to -0.11 g at 50%, is nearly zero at 75%, then rises to +0.11 g at 100%. Thus the discrepancy generally narrows through 75%, then increases slightly in the positive direction at full infill. If every setting except infill were held fixed, that progression would suggest a fixed shell/wall shortfall at low infill combined with an infill-dependent estimate that grows somewhat faster than Bambu Studio's reported mass. That is only a hypothesis: changing infill pattern (15% Gyroid versus 50% Grid, with other patterns unknown) and unrecorded settings confounds this interpretation.
+
+The existing core formula is linear in infill percentage: estimated infill volume = remaining core volume × infill fraction. This sweep alone does not establish that formula is wrong. A controlled sweep with one confirmed pattern and identical non-infill settings is needed to separate core-volume error from pattern/path behavior.
+
 ### Interpretation limits
 
-The opposite error signs show that the two observations do not support applying a single global correction. They do not identify the cause of either error because Test 2 lacks geometry and settings, and Test 1 lacks selected material density, nozzle, support setting, application versions, and file/profile identifiers.
+The earlier comparisons have opposite error signs, and the cube sweep crosses from underestimation to slight overestimation. These observations do not support applying a single global correction. They do not identify the cause of either error because Test 2 lacks geometry and settings, and Test 1 lacks selected material density, nozzle, support setting, application versions, and file/profile identifiers.
 
 There is also an unresolved reproducibility gap for Test 1: with the current code, a 20 mm cube, 0.4 mm nozzle, 2 walls, 4/4 shell layers, 0.2 mm layers, 15% infill, supports off, and built-in PLA density 1.24 g/cm³ produces 2,832 mm³ and 3.51168 g. The reported app result is 3.71 g. A different selected density could explain that app/source gap, but the density was not reported, so this is unconfirmed.
 
@@ -124,7 +144,9 @@ For each sweep below, keep all other baseline settings fixed: G1 cube, 0.4 mm no
 
 Run an additional G4 support-on comparison as a separate test. Record support settings rather than assuming they match the engine's projected-column approximation.
 
-## User-supplied results entered in the report
+## Earlier user-supplied results (kept separate)
+
+Test 2 below is a different STL from the calibration cube. It is not included in the cube-sweep MAPE.
 
 These rows are repeated here so the test matrix remains reserved for complete controlled runs.
 
@@ -135,7 +157,7 @@ These rows are repeated here so the test matrix remains reserved for complete co
 
 ## Preliminary quotation suitability and next measurements
 
-The estimator is suitable only for a clearly labeled preliminary material-use indication, not a firm or slicer-equivalent quote. Two results with opposite signs—one complete geometry/settings report and one incomplete report—do not establish a reliable error range. For customer-facing fixed quotes, verify with a slicer until the matrix has several controlled geometries and settings.
+The estimator is suitable only for a clearly labeled preliminary material-use indication, not a firm or slicer-equivalent quote. The current real-world samples do not establish a reliable error range: the six cube-sweep rows have incomplete setup metadata and the separate STL result lacks its geometry/settings. For customer-facing fixed quotes, verify with a slicer until the matrix has several controlled geometries and settings.
 
 For both reported tests, collect the exact STL hash, app commit/version, selected printer, material name and density, filament diameter, nozzle diameter and line width, support settings, model orientation, and whether displayed grams include support/interface or other job extrusion. For Test 2, first record geometry, wall count, top/bottom layers, layer height, infill pattern, printer/material profiles, and support settings.
 
