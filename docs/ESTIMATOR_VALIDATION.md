@@ -15,28 +15,28 @@ Error convention used in every table (as requested): “Absolute error” is the
 
 | Test | Geometry | Infill | Pattern | Walls | Top / bottom | Layer height | Bambu Studio (g) | Instant3D Slicer (g) | Absolute error (App−Bambu, g) | Percentage error | Notes |
 |---|---|---:|---|---:|---|---:|---:|---:|---:|---:|---|
-| 1 | 20 × 20 × 20 mm cube | 15% | Gyroid | 2 | 4 / 4 | 0.2 mm | 3.96 | 3.71 | -0.25 | -6.31% | Other profile/version details, nozzle, material density and support setting were not included in the report. |
+| 1 | 20 × 20 × 20 mm cube | 15% | Grid | 2 | 4 / 4 | 0.2 mm | 3.96 | 3.71 | -0.25 | -6.31% | Other profile/version details, nozzle, material density and support setting were not included in the report. |
 | 2 | Different STL; geometry not documented | 100% | Not documented | Not documented | Not documented | Not documented | 5.62 | 5.81 | +0.19 | +3.38% | This is not the cube from Test 1. Other settings and geometry are unknown. |
 
 
 ## Calibration cube — infill sweep
 
-The following are reported measurements for the same 20 × 20 × 20 mm calibration cube. The pattern is confirmed only for the 15% Gyroid and 50% Grid rows. No other settings, profile values, app/slicer versions, support state, or STL hash were supplied for this sweep; the repeated 15% readings match Test 1.
+The following are reported measurements for the same 20 × 20 × 20 mm calibration cube. Grid infill is confirmed for all six rows. No other settings, profile values, app/slicer versions, support state, or STL hash were supplied for this sweep; the repeated 15% readings match Test 1.
 
 | Infill | Pattern | Bambu Studio (g) | Instant3D Slicer (g) | Absolute difference (g) | Signed error (App−Bambu, g) | Percentage error |
 |---:|---|---:|---:|---:|---:|---:|
 | 5% | Unknown | 3.44 | 3.01 | 0.43 | -0.43 | -12.50% |
-| 15% | Gyroid | 3.96 | 3.71 | 0.25 | -0.25 | -6.31% |
+| 15% | Grid | 3.96 | 3.71 | 0.25 | -0.25 | -6.31% |
 | 25% | Unknown | 4.59 | 4.41 | 0.18 | -0.18 | -3.92% |
 | 50% | Grid | 6.27 | 6.16 | 0.11 | -0.11 | -1.75% |
 | 75% | Unknown | 7.90 | 7.91 | 0.01 | +0.01 | +0.13% |
 | 100% | Unknown | 9.55 | 9.66 | 0.11 | +0.11 | +1.15% |
 
-The provisional mean absolute percentage error (unweighted arithmetic mean of the six absolute percentage errors) is **4.29%**. It is provisional: patterns are unknown for four rows, other settings/profile data are missing, and the runs have not been independently reproduced.
+The provisional mean absolute percentage error (unweighted arithmetic mean of the six absolute percentage errors) is **4.29%**. It is provisional: the pattern is confirmed as Grid for all six rows, but other settings/profile data are missing, and the runs have not been independently reproduced.
 
-The signed error moves from -0.43 g at 5% to -0.11 g at 50%, is nearly zero at 75%, then rises to +0.11 g at 100%. Thus the discrepancy generally narrows through 75%, then increases slightly in the positive direction at full infill. If every setting except infill were held fixed, that progression would suggest a fixed shell/wall shortfall at low infill combined with an infill-dependent estimate that grows somewhat faster than Bambu Studio's reported mass. That is only a hypothesis: changing infill pattern (15% Gyroid versus 50% Grid, with other patterns unknown) and unrecorded settings confounds this interpretation.
+The signed error moves from -0.43 g at 5% to -0.11 g at 50%, is nearly zero at 75%, then rises to +0.11 g at 100%. Thus the discrepancy generally narrows through 75%, then increases slightly in the positive direction at full infill. If every setting except infill were held fixed, that progression would suggest a fixed shell/wall shortfall at low infill combined with an infill-dependent estimate that grows somewhat faster than Bambu Studio's reported mass. That is only a hypothesis: the same Grid pattern is now confirmed across the sweep, but unrecorded non-infill settings still confound this interpretation.
 
-The existing core formula is linear in infill percentage: estimated infill volume = remaining core volume × infill fraction. This sweep alone does not establish that formula is wrong. Next, repeat the cube sweep at 5%, 15%, 25%, 50%, 75%, and 100% using one fixed, confirmed pattern (for example Gyroid), with the same STL hash and every other setting/profile held constant. Then run a separate pattern comparison at one fixed infill percentage (for example 50% Grid versus 50% Gyroid). This separates infill-fraction behavior from pattern-specific path effects.
+The existing core formula is linear in infill percentage: estimated infill volume = remaining core volume × infill fraction. This sweep alone does not establish that formula is wrong. Next, repeat the cube sweep at 5%, 15%, 25%, 50%, 75%, and 100% using the now-confirmed Grid pattern, with the same STL hash and every other setting/profile held constant. Then run a separate pattern comparison at one fixed infill percentage (for example 50% Grid versus 50% Gyroid). This separates infill-fraction behavior from pattern-specific path effects.
 
 ### Interpretation limits
 
@@ -122,7 +122,7 @@ The G3 polygon construction is intentional: it makes the hollow geometry determi
 
 ## Test matrix
 
-For each sweep below, keep all other baseline settings fixed: G1 cube, 0.4 mm nozzle, 0.2 mm layer height, 2 walls, 4/4 shells, 15% Gyroid, supports off, PLA 1.240 g/cm³, 1.75 mm filament. In the geometry sweep, use those same settings for each model. Do not infer values for unrecorded tests.
+This is a proposed controlled test plan, not the reported Grid infill sweep. For each sweep below, keep all other baseline settings fixed: G1 cube, 0.4 mm nozzle, 0.2 mm layer height, 2 walls, 4/4 shells, 15% Gyroid, supports off, PLA 1.240 g/cm³, 1.75 mm filament. In the geometry sweep, use those same settings for each model. Do not infer values for unrecorded tests.
 
 | Sweep | Geometry | Infill / pattern | Walls | Top / bottom | Bambu Studio (g) | Instant3D Slicer (g) | Absolute error (App−Bambu, g) | Percentage error |
 |---|---|---|---:|---|---:|---:|---:|---:|
@@ -152,7 +152,7 @@ These rows are repeated here so the test matrix remains reserved for complete co
 
 | Test | Bambu Studio (g) | Instant3D Slicer (g) | Error (g) | Percentage error |
 |---|---:|---:|---:|---:|
-| Test 1 — 15% Gyroid cube | 3.96 | 3.71 | -0.25 | -6.31% |
+| Test 1 — 15% Grid cube | 3.96 | 3.71 | -0.25 | -6.31% |
 | Test 2 — separate STL, 100% infill; other settings/geometry incomplete | 5.62 | 5.81 | +0.19 | +3.38% |
 
 ## Preliminary quotation suitability and next measurements
