@@ -36,7 +36,7 @@ The provisional mean absolute percentage error (unweighted arithmetic mean of th
 
 The signed error moves from -0.43 g at 5% to -0.11 g at 50%, is nearly zero at 75%, then rises to +0.11 g at 100%. Thus the discrepancy generally narrows through 75%, then increases slightly in the positive direction at full infill. If every setting except infill were held fixed, that progression would suggest a fixed shell/wall shortfall at low infill combined with an infill-dependent estimate that grows somewhat faster than Bambu Studio's reported mass. That is only a hypothesis: changing infill pattern (15% Gyroid versus 50% Grid, with other patterns unknown) and unrecorded settings confounds this interpretation.
 
-The existing core formula is linear in infill percentage: estimated infill volume = remaining core volume × infill fraction. This sweep alone does not establish that formula is wrong. A controlled sweep with one confirmed pattern and identical non-infill settings is needed to separate core-volume error from pattern/path behavior.
+The existing core formula is linear in infill percentage: estimated infill volume = remaining core volume × infill fraction. This sweep alone does not establish that formula is wrong. Next, repeat the cube sweep at 5%, 15%, 25%, 50%, 75%, and 100% using one fixed, confirmed pattern (for example Gyroid), with the same STL hash and every other setting/profile held constant. Then run a separate pattern comparison at one fixed infill percentage (for example 50% Grid versus 50% Gyroid). This separates infill-fraction behavior from pattern-specific path effects.
 
 ### Interpretation limits
 
@@ -159,6 +159,6 @@ These rows are repeated here so the test matrix remains reserved for complete co
 
 The estimator is suitable only for a clearly labeled preliminary material-use indication, not a firm or slicer-equivalent quote. The current real-world samples do not establish a reliable error range: the six cube-sweep rows have incomplete setup metadata and the separate STL result lacks its geometry/settings. For customer-facing fixed quotes, verify with a slicer until the matrix has several controlled geometries and settings.
 
-For both reported tests, collect the exact STL hash, app commit/version, selected printer, material name and density, filament diameter, nozzle diameter and line width, support settings, model orientation, and whether displayed grams include support/interface or other job extrusion. For Test 2, first record geometry, wall count, top/bottom layers, layer height, infill pattern, printer/material profiles, and support settings.
+For the cube sweep, collect the exact STL hash, app commit/version, selected printer, material name and density, filament diameter, nozzle diameter and line width, support settings, model orientation, and whether displayed grams include support/interface or other job extrusion. Confirm which settings were held constant between infill values. For the separate Test 2, first record geometry, wall count, top/bottom layers, layer height, infill pattern, printer/material profiles, and support settings.
 
 Do not fit a global multiplier to these two values. Any future calibration should be justified by repeated controlled comparisons, evaluated across the full matrix, and checked against held-out geometries.
