@@ -166,7 +166,7 @@ The following is a proposed controlled test plan, not a record of completed test
 | Infill | G1 cube | 100% (record pattern) | 2 | 4 / 4 |  |  |  |  |
 | Wall count | G1 cube | 15% Gyroid | 2 | 4 / 4 |  |  |  |  |
 | Wall count | G1 cube | 15% Gyroid | 3 | 4 / 4 |  |  |  |  |
-| Wall count | G1 cube | 15% Gyroid | 4 | 4 / 4 | 2 | 4 / 4 |  |  |  |  |
+| Wall count | G1 cube | 15% Gyroid | 4 | 4 / 4 |  |  |  |  |
 | Shell layers | G1 cube | 15% Gyroid | 2 | 3 / 3 |  |  |  |  |
 | Shell layers | G1 cube | 15% Gyroid | 2 | 4 / 4 |  |  |  |  |
 | Shell layers | G1 cube | 15% Gyroid | 2 | 5 / 5 |  |  |  |  |
